@@ -24,11 +24,15 @@
 
 ## API Endpoints
 - `GET /api/health` ✅
+- `GET /api/auth/google` ✅ Google OAuth redirect
+- `GET /api/auth/google/callback` ✅ OAuth callback → JWT
+- `GET /api/auth/me` ✅ Check JWT user
+- `POST /api/auth/logout` ✅ Logout
 - `GET /api/quiz` ✅ List all
 - `GET /api/quiz/seed/data` ✅ 15 questions
-- `GET /api/quiz/:id` ✅ Fetch quiz
-- `POST /api/quiz/:id/submit` ✅ Score + Grade + Explanations + Weak areas
-- `POST /api/upload` ✅ File upload + quiz generation
+- `GET /api/quiz/:id` ✅ Fetch quiz (strips answers)
+- `POST /api/quiz/:id/submit` ✅ Score + Grade (handles all types)
+- `POST /api/upload` ✅ File upload + config + AI quiz generation (mixed types)
 
 ## Storage Architecture
 ```
@@ -36,10 +40,24 @@ Upload/Load → Memory Cache (fast) → KV (persistent, 7-day TTL)
                                    → D1 (available, queries table ready)
 ```
 
-## To Enable GitHub Auto-Deploy
-1. Cloudflare Dashboard → Workers & Pages → genq
-2. Settings → Git Integration → Connect to GitHub
-3. Select repo: NatdanaiSingngam/GenQ
-4. Build: `cd client && npm install && npm run build`
-5. Output: `dist`
-6. Env: `VITE_API_URL = https://genq-api.banana-by-monky.workers.dev/api`
+## Features
+- ✅ Google OAuth Login with JWT (7-day expiry)
+- ✅ Mixed quiz types: Multiple Choice, True-False, Completion, Short Answer, Essay
+- ✅ Config page after upload to select types/counts
+- ✅ Quiz page renders each type with appropriate input
+- ✅ Results page with all types, pending review for Essay
+- ✅ Guest history via sessionStorage (cleared on tab close)
+- ✅ Clear history button
+- ✅ AI pipeline: Workers AI → Gemini → Mock
+- ✅ File upload: PDF, PPTX, DOCX, TXT with binary detection
+
+## Env Variables
+- `VITE_API_URL` (Pages production) = `https://genq-api.banana-by-monky.workers.dev/api`
+- `GOOGLE_REDIRECT_URI` (Worker vars) = `https://genq-api.banana-by-monky.workers.dev/api/auth/google/callback`
+- `FRONTEND_URL` (Worker vars) = `https://genq-dlg.pages.dev`
+
+## Secrets (wrangler secret put)
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `JWT_SECRET`
+- `GEMINI_API_KEY` (fallback)
