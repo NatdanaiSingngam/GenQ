@@ -64,6 +64,21 @@ export default function Landing() {
     });
   };
 
+  const setCountValue = (key, raw) => {
+    const val = parseInt(raw, 10);
+    if (isNaN(val) || val < 0) return;
+    setQuestionCounts((prev) => {
+      const clamped = Math.min(val, 30);
+      const newTotal = totalQuestions - (prev[key] || 0) + clamped;
+      if (newTotal > maxTotal) {
+        // Cap to max possible while staying ≤ maxTotal
+        const maxForThis = Math.max(0, maxTotal - (totalQuestions - (prev[key] || 0)));
+        return { ...prev, [key]: Math.min(clamped, maxForThis) };
+      }
+      return { ...prev, [key]: clamped };
+    });
+  };
+
   const onDrop = useCallback(
     (acceptedFiles, fileRejections) => {
       if (fileRejections.length > 0) {
@@ -295,9 +310,10 @@ export default function Landing() {
                             >
                               <Minus className="w-4 h-4" />
                             </button>
-                            <span className="w-8 text-center font-bold text-gray-800 tabular-nums">
-                              {questionCounts[key]}
-                            </span>
+                            <input type="number" min="0" max="30" value={questionCounts[key]}
+                              onChange={(e) => setCountValue(key, e.target.value)}
+                              onFocus={(e) => e.target.select()}
+                              className="w-14 text-center font-bold text-gray-800 tabular-nums bg-white border border-gray-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-genq-300 focus:border-genq-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                             <button
                               onClick={() => adjustCount(key, 1)}
                               disabled={totalQuestions >= maxTotal || questionCounts[key] >= 30}
