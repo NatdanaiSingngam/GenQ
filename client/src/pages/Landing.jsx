@@ -16,9 +16,8 @@ import {
   Loader2,
   GraduationCap,
 } from "lucide-react";
-import { getSeedQuiz } from "../api/client";
+import { uploadFile, getSeedQuiz } from "../api/client";
 import { addToSessionHistory } from "../utils/history";
-import { setPendingFile } from "../utils/fileStore";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -29,11 +28,58 @@ export default function Landing() {
   const [error, setError] = useState("");
 
   const onDrop = useCallback(
-    (acceptedFiles) => {
+    async (acceptedFiles) => {
       const file = acceptedFiles[0];
       if (!file) return;
-      setPendingFile(file);
-      navigate("/config");
+
+      setError("");
+      setUploading(true);
+      setProcessingStep("📄 กำลังอ่านเนื้อหาจากไฟล์...");
+
+      const steps = [
+        { progress: 20, text: "📄 กำลังประมวลผลไฟล์..." },
+        { progress: 40, text: "🧠 กำลังวิเคราะห์เนื้อหาด้วย AI..." },
+        { progress: 65, text: "✍️ กำลังสร้างข้อสอบ (เลือกตอบ+ถูกผิด+ตอบสั้น)..." },
+        { progress: 85, text: "🎨 กำลังจัดรูปแบบข้อสอบ..." },
+      ];
+
+      let stepIndex = 0;
+      const stepTimer = setInterval(() => {
+        if (stepIndex < steps.length) {
+          setProcessingStep(steps[stepIndex].text);
+          setUploadProgress(steps[stepIndex].progress);
+          stepIndex++;
+        }
+      }, 800);
+
+      try {
+        // Default config: 3 MC + 1 TF + 1 SA
+        const defaultConfig = { multipleChoice: 3, trueFalse: 1, shortAnswer: 1 };
+        const data = await uploadFile(file, (pct) => {
+          const p = Math.round((pct.loaded / pct.total) * 20);
+          setUploadProgress(p);
+        }, defaultConfig);
+
+        clearInterval(stepTimer);
+        setUploadProgress(100);
+        setProcessingStep("✅ พร้อมแล้ว! กำลังเปิดข้อสอบ...");
+
+        addToSessionHistory({
+          id: data.quizId, title: data.title,
+          questionCount: data.questionCount,
+          source: file.name, createdAt: new Date().toISOString(),
+        });
+
+        setTimeout(() => navigate(`/quiz/${data.quizId}`), 500);
+      } catch (err) {
+        clearInterval(stepTimer);
+        setError(
+          err.response?.data?.error ||
+          err.message ||
+          "เกิดข้อผิดพลาดในการสร้างข้อสอบ กรุณาลองใหม่"
+        );
+        setUploading(false);
+      }
     },
     [navigate]
   );
@@ -105,7 +151,6 @@ export default function Landing() {
               AI จะสร้างข้อสอบพร้อมเฉลยให้คุณทันที — ไม่ต้องเสียเวลาอ่านซ้ำหลายรอบ
             </p>
 
-            {/* Stats */}
             <div className="flex flex-wrap justify-center gap-6 sm:gap-10 mb-10">
               {[
                 { icon: Clock, value: "1 นาที", label: "สร้างข้อสอบ" },
@@ -120,9 +165,7 @@ export default function Landing() {
                   className="flex items-center gap-2 text-gray-500"
                 >
                   <stat.icon className="w-5 h-5 text-genq-500" />
-                  <span className="font-semibold text-gray-900">
-                    {stat.value}
-                  </span>
+                  <span className="font-semibold text-gray-900">{stat.value}</span>
                   <span className="text-sm">{stat.label}</span>
                 </motion.div>
               ))}
@@ -155,53 +198,27 @@ export default function Landing() {
                   <input {...getInputProps()} />
 
                   <div className="flex flex-col items-center gap-4">
-                    <div
-                      className={`
-                      w-20 h-20 rounded-2xl flex items-center justify-center
-                      transition-all duration-300
-                      ${
-                        isDragActive || dragOver
-                          ? "bg-genq-500 text-white scale-110 shadow-xl shadow-genq-500/30"
-                          : "bg-genq-100 text-genq-600"
-                      }
-                    `}
-                    >
+                    <div className={`w-20 h-20 rounded-2xl flex items-center justify-center transition-all duration-300 ${
+                      isDragActive || dragOver
+                        ? "bg-genq-500 text-white scale-110 shadow-xl shadow-genq-500/30"
+                        : "bg-genq-100 text-genq-600"
+                    }`}>
                       <Upload className="w-8 h-8" />
                     </div>
-
                     <div>
                       <p className="text-xl font-bold text-gray-800 mb-1">
-                        {isDragActive
-                          ? "ปล่อยไฟล์ได้เลย!"
-                          : "ลากไฟล์มาวางที่นี่"}
+                        {isDragActive ? "ปล่อยไฟล์ได้เลย!" : "ลากไฟล์มาวางที่นี่"}
                       </p>
-                      <p className="text-gray-500 text-sm">
-                        หรือคลิกเพื่อเลือกไฟล์
-                      </p>
+                      <p className="text-gray-500 text-sm">หรือคลิกเพื่อเลือกไฟล์</p>
                     </div>
-
                     <div className="flex flex-wrap justify-center gap-2 text-xs text-gray-400">
-                      <span className="px-3 py-1 bg-gray-100 rounded-full">
-                        PDF
-                      </span>
-                      <span className="px-3 py-1 bg-gray-100 rounded-full">
-                        PPTX
-                      </span>
-                      <span className="px-3 py-1 bg-gray-100 rounded-full">
-                        DOCX
-                      </span>
-                      <span className="px-3 py-1 bg-gray-100 rounded-full">
-                        TXT
-                      </span>
-                      <span className="px-3 py-1 bg-gray-100 rounded-full">
-                        สูงสุด 20MB
-                      </span>
+                      <span className="px-3 py-1 bg-gray-100 rounded-full">PDF</span>
+                      <span className="px-3 py-1 bg-gray-100 rounded-full">PPTX</span>
+                      <span className="px-3 py-1 bg-gray-100 rounded-full">DOCX</span>
+                      <span className="px-3 py-1 bg-gray-100 rounded-full">TXT</span>
+                      <span className="px-3 py-1 bg-gray-100 rounded-full">สูงสุด 20MB</span>
                     </div>
                   </div>
-
-                  {/* Decorative elements */}
-                  <div className="absolute -top-3 -right-3 w-6 h-6 bg-accent-400 rounded-full opacity-60" />
-                  <div className="absolute -bottom-2 -left-2 w-4 h-4 bg-genq-300 rounded-full opacity-40" />
                 </motion.div>
               ) : (
                 <motion.div
@@ -218,11 +235,8 @@ export default function Landing() {
                     <div className="absolute -top-1 -right-1 w-4 h-4 bg-accent-400 rounded-full animate-pulse" />
                   </div>
 
-                  <p className="text-lg font-semibold text-gray-800 mb-3">
-                    {processingStep}
-                  </p>
+                  <p className="text-lg font-semibold text-gray-800 mb-3">{processingStep}</p>
 
-                  {/* Progress bar */}
                   <div className="w-full max-w-xs mx-auto bg-gray-100 rounded-full h-2 overflow-hidden">
                     <motion.div
                       className="h-full bg-gradient-to-r from-genq-500 to-accent-500 rounded-full"
@@ -231,15 +245,11 @@ export default function Landing() {
                       transition={{ duration: 0.5 }}
                     />
                   </div>
-
-                  <p className="text-sm text-gray-400 mt-3">
-                    {uploadProgress}%
-                  </p>
+                  <p className="text-sm text-gray-400 mt-3">{uploadProgress}%</p>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Error message */}
             <AnimatePresence>
               {error && (
                 <motion.div
@@ -253,7 +263,6 @@ export default function Landing() {
               )}
             </AnimatePresence>
 
-            {/* Try seed data */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -266,9 +275,7 @@ export default function Landing() {
                 className="inline-flex items-center gap-2 text-genq-600 hover:text-genq-700 font-medium text-sm transition-colors group"
               >
                 <GraduationCap className="w-4 h-4" />
-                <span>
-                  หรือลองทําข้อสอบตัวอย่างทันที (ไม่ต้องอัปโหลดไฟล์)
-                </span>
+                <span>หรือลองทําข้อสอบตัวอย่างทันที (ไม่ต้องอัปโหลดไฟล์)</span>
                 <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </button>
             </motion.div>
@@ -286,37 +293,16 @@ export default function Landing() {
             className="text-center mb-12"
           >
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              วิธีใช้งาน{" "}
-              <span className="gradient-text">ง่ายนิดเดียว</span>
+              วิธีใช้งาน <span className="gradient-text">ง่ายนิดเดียว</span>
             </h2>
-            <p className="text-gray-500 text-lg">
-              เพียง 3 ขั้นตอน ก็เปลี่ยนสไลดะของคุณเป็นข้อสอบ Interactive
-            </p>
+            <p className="text-gray-500 text-lg">เพียง 3 ขั้นตอน ก็เปลี่ยนสไลดะของคุณเป็นข้อสอบ Interactive</p>
           </motion.div>
 
           <div className="grid sm:grid-cols-3 gap-8">
             {[
-              {
-                icon: Upload,
-                step: "1",
-                title: "ลาก & วางไฟล์",
-                desc: "ลากไฟล์สไลด์เรียน PDF หรือ PPTX มาวางบนหน้าเว็บ",
-                color: "from-genq-500 to-genq-600",
-              },
-              {
-                icon: Brain,
-                step: "2",
-                title: "AI สร้างข้อสอบ",
-                desc: "ระบบ AI วิเคราะห์เนื้อหาและสร้างข้อสอบแบบ Multiple Choice พร้อมเฉลย",
-                color: "from-accent-500 to-accent-600",
-              },
-              {
-                icon: CheckCircle2,
-                step: "3",
-                title: "ทดสอบ & รู้ผลทันที",
-                desc: "กดเลือกคำตอบ ดูเฉลยและคำอธิบาย รู้จุดอ่อนของตัวเองก่อนสอบ",
-                color: "from-genq-600 to-genq-800",
-              },
+              { icon: Upload, step: "1", title: "ลาก & วางไฟล์", desc: "ลากไฟล์สไลด์เรียน PDF หรือ PPTX มาวางบนหน้าเว็บ", color: "from-genq-500 to-genq-600" },
+              { icon: Brain, step: "2", title: "AI สร้างข้อสอบ", desc: "ระบบ AI วิเคราะห์เนื้อหาและสร้างข้อสอบแบบเลือกตอบ ถูกผิด และตอบสั้น พร้อมเฉลย", color: "from-accent-500 to-accent-600" },
+              { icon: CheckCircle2, step: "3", title: "ทดสอบ & รู้ผลทันที", desc: "กดเลือกคำตอบ ดูเฉลยและคำอธิบาย รู้จุดอ่อนของตัวเองก่อนสอบ", color: "from-genq-600 to-genq-800" },
             ].map((item, i) => (
               <motion.div
                 key={i}
@@ -326,22 +312,12 @@ export default function Landing() {
                 transition={{ delay: i * 0.15 }}
                 className="card-hover text-center p-8"
               >
-                <div
-                  className={`
-                    w-16 h-16 rounded-2xl bg-gradient-to-br ${item.color}
-                    flex items-center justify-center mx-auto mb-5
-                    shadow-lg
-                  `}
-                >
+                <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${item.color} flex items-center justify-center mx-auto mb-5 shadow-lg`}>
                   <item.icon className="w-7 h-7 text-white" />
                 </div>
-                <div className="text-3xl font-black text-genq-200 mb-2">
-                  {item.step}
-                </div>
+                <div className="text-3xl font-black text-genq-200 mb-2">{item.step}</div>
                 <h3 className="text-lg font-bold mb-2">{item.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">
-                  {item.desc}
-                </p>
+                <p className="text-gray-500 text-sm leading-relaxed">{item.desc}</p>
               </motion.div>
             ))}
           </div>
@@ -359,32 +335,14 @@ export default function Landing() {
           >
             <div>
               <h2 className="text-3xl sm:text-4xl font-bold mb-6">
-                ทำไมต้อง{" "}
-                <span className="gradient-text">GenQ</span>?
+                ทำไมต้อง <span className="gradient-text">GenQ</span>?
               </h2>
-
               <div className="space-y-4">
                 {[
-                  {
-                    icon: Zap,
-                    title: "ประหยัดเวลา 3-5 ชม. ต่อวิชา",
-                    desc: "ไม่ต้องเสียเวลาอ่านสไลด์ซ้ำหลายรอบ หรือนั่งทำข้อสอบเอง",
-                  },
-                  {
-                    icon: Brain,
-                    title: "Active Recall เพิ่มความจำ 80%",
-                    desc: "วิทยาศาสตร์พิสูจน์แล้วว่า การทำข้อสอบช่วยจำได้ดีกว่าอ่านอย่างเดียว",
-                  },
-                  {
-                    icon: Target,
-                    title: "รู้จุดอ่อนก่อนเข้าห้องสอบ",
-                    desc: "ระบบวิเคราะห์ว่าคุณพลาดตรงไหน พร้อมแนะนำให้กลับไปอ่านสไลด์หน้าไหน",
-                  },
-                  {
-                    icon: Clock,
-                    title: "ใช้ได้ทุกที่ ทุกเวลา 24/7",
-                    desc: "แค่มีอินเทอร์เน็ต ก็เปลี่ยนสไลด์เป็นข้อสอบได้ทันที",
-                  },
+                  { icon: Zap, title: "ประหยัดเวลา 3-5 ชม. ต่อวิชา", desc: "ไม่ต้องเสียเวลาอ่านสไลด์ซ้ำหลายรอบ หรือนั่งทำข้อสอบเอง" },
+                  { icon: Brain, title: "Active Recall เพิ่มความจำ 80%", desc: "วิทยาศาสตร์พิสูจน์แล้วว่า การทำข้อสอบช่วยจำได้ดีกว่าอ่านอย่างเดียว" },
+                  { icon: Target, title: "รู้จุดอ่อนก่อนเข้าห้องสอบ", desc: "ระบบวิเคราะห์ว่าคุณพลาดตรงไหน พร้อมแนะนำให้กลับไปอ่านสไลด์หน้าไหน" },
+                  { icon: Clock, title: "ใช้ได้ทุกที่ ทุกเวลา 24/7", desc: "แค่มีอินเทอร์เน็ต ก็เปลี่ยนสไลด์เป็นข้อสอบได้ทันที" },
                 ].map((item, i) => (
                   <motion.div
                     key={i}
@@ -398,9 +356,7 @@ export default function Landing() {
                       <item.icon className="w-6 h-6 text-genq-600" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-800">
-                        {item.title}
-                      </h3>
+                      <h3 className="font-semibold text-gray-800">{item.title}</h3>
                       <p className="text-sm text-gray-500">{item.desc}</p>
                     </div>
                   </motion.div>
@@ -416,17 +372,13 @@ export default function Landing() {
             >
               <div className="card p-8 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-genq-100 to-transparent rounded-bl-full" />
-
                 <div className="relative">
                   <div className="flex items-center gap-2 mb-6">
                     <div className="w-3 h-3 rounded-full bg-red-400" />
                     <div className="w-3 h-3 rounded-full bg-yellow-400" />
                     <div className="w-3 h-3 rounded-full bg-green-400" />
-                    <span className="text-sm text-gray-400 ml-2">
-                      สไลด์เรียน — ระบบฐานข้อมูล
-                    </span>
+                    <span className="text-sm text-gray-400 ml-2">สไลด์เรียน — ระบบฐานข้อมูล</span>
                   </div>
-
                   <div className="space-y-3 mb-6">
                     <div className="h-3 bg-gray-200 rounded-full w-full" />
                     <div className="h-3 bg-gray-200 rounded-full w-3/4" />
@@ -434,7 +386,6 @@ export default function Landing() {
                     <div className="h-3 bg-gray-200 rounded-full w-2/3" />
                     <div className="h-3 bg-gray-200 rounded-full w-4/5" />
                   </div>
-
                   <motion.div
                     animate={{ y: [0, -5, 0] }}
                     transition={{ repeat: Infinity, duration: 2 }}
@@ -445,7 +396,6 @@ export default function Landing() {
                       <span>✨ GenQ กำลังสร้างข้อสอบ...</span>
                     </div>
                   </motion.div>
-
                   <div className="mt-6 space-y-4">
                     {["ข้อ 1", "ข้อ 2", "ข้อ 3"].map((q, i) => (
                       <motion.div
@@ -468,8 +418,6 @@ export default function Landing() {
                   </div>
                 </div>
               </div>
-
-              {/* Floating badge */}
               <motion.div
                 animate={{ y: [0, -8, 0] }}
                 transition={{ repeat: Infinity, duration: 3 }}
@@ -490,23 +438,14 @@ export default function Landing() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              พร้อมสอบแล้วหรือยัง? 🎯
-            </h2>
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">พร้อมสอบแล้วหรือยัง? 🎯</h2>
             <p className="text-genq-200 text-lg mb-8">
               ไม่ต้องอ่านสไลด์ซ้ำหลายรอบอีกต่อไป
-              <br />
-              แค่ลากวาง — แล้วเริ่มสอบได้เลย
+              <br />แค่ลากวาง — แล้วเริ่มสอบได้เลย
             </p>
             <button
-              onClick={() =>
-                document
-                  .getElementById("upload-section")
-                  ?.scrollIntoView({ behavior: "smooth" })
-              }
-              className="px-8 py-4 bg-white text-genq-700 font-bold rounded-2xl
-                hover:bg-genq-50 active:scale-[0.98] transition-all duration-200
-                shadow-2xl shadow-black/20 text-lg"
+              onClick={() => document.getElementById("upload-section")?.scrollIntoView({ behavior: "smooth" })}
+              className="px-8 py-4 bg-white text-genq-700 font-bold rounded-2xl hover:bg-genq-50 active:scale-[0.98] transition-all duration-200 shadow-2xl shadow-black/20 text-lg"
             >
               🚀 ลองใช้ฟรีตอนนี้
             </button>
