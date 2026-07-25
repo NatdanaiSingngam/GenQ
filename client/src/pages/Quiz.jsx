@@ -356,8 +356,8 @@ export default function Quiz() {
   };
 
   // Functions needed by timer (defined before the effect)
-  const allShown = isViewing && quiz?.questions?.every((q) => shownAnswers[q.id]);
   const isViewing = mode === "view";
+  const allShown = isViewing && quiz?.questions?.every((q) => shownAnswers[q.id]);
 
   if (loading && !quiz) return <LoadingPage message="กำลังโหลดข้อสอบ..." />;
   if (error && !quiz) {
