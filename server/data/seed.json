@@ -1,0 +1,186 @@
+{
+  "title": "📚 ระบบฐานข้อมูล — บทที่ 1: ความรู้เบื้องต้น",
+  "source": "Database_Chapter1_Introduction.pdf",
+  "questions": [
+    {
+      "id": "q1",
+      "question": "ความหมายของระบบฐานข้อมูล (Database) คือข้อใด?",
+      "options": [
+        "กลุ่มของข้อมูลที่ถูกจัดเก็บอย่างมีโครงสร้างและมีความสัมพันธ์กัน สามารถเรียกใช้ได้อย่างมีประสิทธิภาพ",
+        "โปรแกรมที่ใช้ในการพิมพ์เอกสาร",
+        "ระบบปฏิบัติการที่ใช้จัดการไฟล์",
+        "กลุ่มของไฟล์ที่ถูกเก็บไว้ในโฟลเดอร์เดียวกัน"
+      ],
+      "correctIndex": 0,
+      "explanation": "ระบบฐานข้อมูล คือการจัดเก็บข้อมูลอย่างมีโครงสร้าง (Structured) โดยข้อมูลมีความสัมพันธ์กัน (Relations) ช่วยให้สืบค้นและจัดการได้อย่างมีประสิทธิภาพ ต่างจากการเก็บไฟล์ทั่วไปที่ไม่มีโครงสร้าง"
+    },
+    {
+      "id": "q2",
+      "question": "ข้อใดคือคุณสมบัติของ Database Management System (DBMS)?",
+      "options": [
+        "จัดการความถูกต้องและความปลอดภัยของข้อมูล จัดการ concurrent access และกู้คืนข้อมูลได้",
+        "เป็นโปรแกรมสำหรับสร้างกราฟิกเท่านั้น",
+        "ใช้เฉพาะในการเชื่อมต่ออินเทอร์เน็ต",
+        "เป็นฮาร์ดแวร์สำหรับเก็บข้อมูล"
+      ],
+      "correctIndex": 0,
+      "explanation": "DBMS มีหน้าที่หลักในการจัดการข้อมูล ได้แก่ ความถูกต้อง (Integrity) ความปลอดภัย (Security) การจัดการผู้ใช้หลายคนพร้อมกัน (Concurrency Control) และการกู้คืนข้อมูล (Recovery)"
+    },
+    {
+      "id": "q3",
+      "question": "ข้อใดคือตัวอย่างของ Relational Database Management System (RDBMS)?",
+      "options": [
+        "MySQL, PostgreSQL, Oracle Database",
+        "Microsoft Word, Google Docs",
+        "Windows, Linux, macOS",
+        "Chrome, Firefox, Safari"
+      ],
+      "correctIndex": 0,
+      "explanation": "MySQL, PostgreSQL, Oracle Database เป็น RDBMS ที่ใช้แบบจำลองเชิงสัมพันธ์ (Relational Model) จัดเก็บข้อมูลในรูปแบบตาราง (Table) ที่มีความสัมพันธ์กัน"
+    },
+    {
+      "id": "q4",
+      "question": "Primary Key มีคุณสมบัติสำคัญอย่างไร?",
+      "options": [
+        "ต้องมีค่าไม่ซ้ำกัน (Unique) และห้ามเป็น NULL",
+        "สามารถซ้ำกันได้",
+        "ต้องเป็นตัวเลขเท่านั้น",
+        "สามารถเว้นว่างได้"
+      ],
+      "correctIndex": 0,
+      "explanation": "Primary Key คือคอลัมน์หรือกลุ่มคอลัมน์ที่ใช้ระบุแต่ละแถวในตารางได้อย่างไม่ซ้ำกัน (Unique) โดยต้องไม่เป็น NULL (NOT NULL) เพื่อให้สามารถระบุแถวได้อย่างถูกต้อง"
+    },
+    {
+      "id": "q5",
+      "question": "Foreign Key คืออะไร?",
+      "options": [
+        "คอลัมน์ที่ใช้อ้างอิงถึง Primary Key ในอีกตารางหนึ่ง เพื่อสร้างความสัมพันธ์ระหว่างตาราง",
+        "คีย์ที่ใช้ในการเข้ารหัสฐานข้อมูล",
+        "คีย์หลักของตารางที่มีหลายคอลัมน์",
+        "คีย์ที่ใช้ในการล็อกอินฐานข้อมูล"
+      ],
+      "correctIndex": 0,
+      "explanation": "Foreign Key คือคอลัมน์ในตารางหนึ่งที่อ้างอิงไปยัง Primary Key ของอีกตารางหนึ่ง ใช้สร้างความสัมพันธ์ (Relationship) ระหว่างตาราง เช่น ตาราง Orders มี Foreign Key อ้างอิง customer_id ไปยังตาราง Customers"
+    },
+    {
+      "id": "q6",
+      "question": "Normalization ในฐานข้อมูลมีจุดประสงค์หลักคืออะไร?",
+      "options": [
+        "ลดความซ้ำซ้อนของข้อมูล (Redundancy) และป้องกันความผิดปกติในการปรับปรุงข้อมูล (Anomalies)",
+        "เพิ่มความเร็วในการ Query",
+        "ลดขนาดไฟล์ฐานข้อมูล",
+        "เพิ่มจำนวนข้อมูลที่เก็บได้"
+      ],
+      "correctIndex": 0,
+      "explanation": "Normalization เป็นกระบวนการออกแบบฐานข้อมูลเพื่อลด Data Redundancy (ข้อมูลซ้ำซ้อน) และป้องกัน Update Anomalies (ความผิดปกติเมื่อแก้ไขข้อมูล) โดยแบ่งตารางใหญ่ออกเป็นตารางย่อยตามกฎ Normal Form"
+    },
+    {
+      "id": "q7",
+      "question": "SQL ย่อมาจากอะไร?",
+      "options": [
+        "Structured Query Language",
+        "Simple Query Language",
+        "Standardized Question Language",
+        "System Query Logic"
+      ],
+      "correctIndex": 0,
+      "explanation": "SQL (Structured Query Language) เป็นภาษามาตรฐานสำหรับจัดการและสอบถามข้อมูลใน Relational Database ถูกพัฒนาโดย IBM ในปี 1970s และกลายเป็นมาตรฐาน ANSI/ISO"
+    },
+    {
+      "id": "q8",
+      "question": "คำสั่ง SQL ใดใช้ดึงข้อมูลจากตาราง?",
+      "options": [
+        "SELECT * FROM table_name;",
+        "GET * FROM table_name;",
+        "FETCH * FROM table_name;",
+        "EXTRACT * FROM table_name;"
+      ],
+      "correctIndex": 0,
+      "explanation": "คำสั่ง SELECT ใช้ดึงข้อมูล (Retrieve) จากตาราง โดย * หมายถึงเลือกทุกคอลัมน์ รูปแบบพื้นฐานคือ SELECT column1, column2 FROM table_name WHERE condition;"
+    },
+    {
+      "id": "q9",
+      "question": "Index ในฐานข้อมูลช่วยอะไร?",
+      "options": [
+        "เพิ่มความเร็วในการค้นหาและการเข้าถึงข้อมูล (Query Performance)",
+        "ลดพื้นที่จัดเก็บข้อมูล",
+        "เพิ่มความปลอดภัยของข้อมูล",
+        "สำรองข้อมูลอัตโนมัติ"
+      ],
+      "correctIndex": 0,
+      "explanation": "Index เปรียบเสมือนสารบัญของหนังสือ ช่วยให้ Database Engine ค้นหาข้อมูลได้เร็วขึ้นโดยไม่ต้อง Scan ทุกแถว (Full Table Scan) แต่ก็มีข้อเสียคือใช้พื้นที่เพิ่มเติมและทำให้ INSERT/UPDATE ช้าลงเล็กน้อย"
+    },
+    {
+      "id": "q10",
+      "question": "Transaction ในฐานข้อมูลมีคุณสมบัติ ACID ข้อใดถูกต้อง?",
+      "options": [
+        "Atomicity (รวมหรือไม่ทำเลย), Consistency (คงสภาพถูกต้อง), Isolation (แยกจากกัน), Durability (ถาวร)",
+        "Access, Control, Input, Delete",
+        "Add, Commit, Insert, Drop",
+        "All, Core, Index, Data"
+      ],
+      "correctIndex": 0,
+      "explanation": "ACID ได้แก่: Atomicity - Transaction ต้องทำงานสำเร็จทั้งหมดหรือไม่ทำเลย; Consistency - ข้อมูลต้องถูกต้องตามกฎ; Isolation - แต่ละ Transaction แยกจากกัน; Durability - เมื่อ Commit แล้วข้อมูลต้องอยู่ถาวรแม้ระบบล่ม"
+    },
+    {
+      "id": "q11",
+      "question": "ข้อใดคือความแตกต่างหลักระหว่าง SQL และ NoSQL?",
+      "options": [
+        "SQL มี Schema ตายตัว (Fixed Schema) ส่วน NoSQL ยืดหยุ่นกว่า (Dynamic Schema)",
+        "SQL เร็วกว่า NoSQL ทุกกรณี",
+        "NoSQL ไม่สามารถเก็บข้อมูลที่เป็นตัวเลขได้",
+        "SQL ใช้ได้กับ Cloud เท่านั้น"
+      ],
+      "correctIndex": 0,
+      "explanation": "SQL Database (Relational) กำหนด Schema หรือโครงสร้างตารางไว้ล่วงหน้า เช่น ชนิดข้อมูลของแต่ละคอลัมน์ ในขณะที่ NoSQL ยืดหยุ่นกว่า สามารถเพิ่ม字段ได้โดยไม่ต้องแก้ Schema ล่วงหน้า"
+    },
+    {
+      "id": "q12",
+      "question": "ถ้าต้องการรวมข้อมูลจาก 2 ตารางใน SQL ควรใช้คำสั่งใด?",
+      "options": [
+        "JOIN (เช่น INNER JOIN, LEFT JOIN)",
+        "MERGE",
+        "COMBINE",
+        "UNIFY"
+      ],
+      "correctIndex": 0,
+      "explanation": "JOIN ใช้รวมข้อมูลจาก 2 ตารางขึ้นไปโดยใช้คีย์ที่สัมพันธ์กัน เช่น INNER JOIN คืนค่าเฉพาะแถวที่ตรงกันทั้งสองตาราง LEFT JOIN คืนค่าทุกแถวจากตารางซ้ายแม้ไม่ตรงกัน"
+    },
+    {
+      "id": "q13",
+      "question": "Group BY ใน SQL ใช้ทำอะไร?",
+      "options": [
+        "จัดกลุ่มข้อมูลตามคอลัมน์ที่กำหนด เพื่อใช้ฟังก์ชัน Aggregate (SUM, COUNT, AVG)",
+        "เรียงลำดับข้อมูล",
+        "กรองข้อมูลตามเงื่อนไข",
+        "เชื่อมตารางเข้าด้วยกัน"
+      ],
+      "correctIndex": 0,
+      "explanation": "GROUP BY ใช้จัดกลุ่มข้อมูลที่มีค่าเหมือนกันในคอลัมน์ที่กำหนด แล้วใช้ฟังก์ชัน Aggregate เช่น SUM(), COUNT(), AVG(), MAX(), MIN() เพื่อคำนวณค่าของแต่ละกลุ่ม"
+    },
+    {
+      "id": "q14",
+      "question": "Entity-Relationship Diagram (ERD) ใช้ทำอะไร?",
+      "options": [
+        "แสดงโครงสร้างและความสัมพันธ์ระหว่างข้อมูลในระบบฐานข้อมูล",
+        "แสดงขั้นตอนการทำงานของโปรแกรม",
+        "แสดงสถาปัตยกรรมเครือข่าย",
+        "แสดงผังองค์กร"
+      ],
+      "correctIndex": 0,
+      "explanation": "ERD เป็นเครื่องมือที่ใช้ในการออกแบบฐานข้อมูลเชิงแนวคิด (Conceptual Design) โดยแสดง Entity (สิ่งต่างๆ ในระบบ) Attribute (คุณสมบัติ) และ Relationship (ความสัมพันธ์) ระหว่าง Entity"
+    },
+    {
+      "id": "q15",
+      "question": "Data Redundancy คือปัญหาอะไร?",
+      "options": [
+        "การเก็บข้อมูลซ้ำกันหลายที่ ทำให้สิ้นเปลืองพื้นที่และเกิดความไม่สอดคล้องของข้อมูล",
+        "การสูญหายของข้อมูล",
+        "การเชื่อมต่อฐานข้อมูลล้มเหลว",
+        "การโจมตีทางไซเบอร์"
+      ],
+      "correctIndex": 0,
+      "explanation": "Data Redundancy คือการเก็บข้อมูลชุดเดียวกันไว้หลายตำแหน่ง ทำให้เกิดปัญหาพื้นที่จัดเก็บสิ้นเปลืองและที่สำคัญคือ Update Anomaly — เมื่ออัปเดตข้อมูลที่เก็บซ้ำไว้ไม่ครบทุกที่ ข้อมูลจะไม่สอดคล้องกัน"
+    }
+  ]
+}
