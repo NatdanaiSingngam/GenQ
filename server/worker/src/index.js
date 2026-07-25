@@ -683,13 +683,22 @@ app.get("/api/quiz/seed/data", async (c) => {
   });
 });
 
-// GET /api/quiz/:id — Fetch quiz (without answers)
+// GET /api/quiz/:id — Fetch quiz (include answer data for view mode)
 app.get("/api/quiz/:id", async (c) => {
   const quiz = await loadQuiz(c.env, c.req.param("id"));
   if (!quiz) return c.json({ error: "Quiz not found" }, 404);
 
   const publicQuestions = quiz.questions.map((q) => {
     const base = { id: q.id, type: q.type || "multiple-choice", question: q.question };
+    // Include answer data for view mode (answers are already in KV)
+    if (q.correctIndex !== undefined) base.correctIndex = q.correctIndex;
+    if (q.answer !== undefined) base.answer = q.answer;
+    if (q.acceptableAnswers !== undefined) base.acceptableAnswers = q.acceptableAnswers;
+    if (q.keywords !== undefined) base.keywords = q.keywords;
+    if (q.explanation !== undefined) base.explanation = q.explanation;
+    if (q.pairs !== undefined) base.pairs = q.pairs;
+    if (q.guidelines !== undefined) base.guidelines = q.guidelines;
+
     switch (q.type) {
       case "true-false":
         base.options = ["ถูก", "ผิด"];
