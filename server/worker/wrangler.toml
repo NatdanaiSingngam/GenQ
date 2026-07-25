@@ -15,6 +15,5 @@ account_id = "462809e24d9075765b54cd1fd0842591"
   database_name = "banana-by-monky-db"
   database_id = "0dfe304b-4541-41b7-b4b6-7f98a567fd1c"
 
-# Environment variables
+# Environment variables (secrets set via wrangler secret put)
 [vars]
-GEMINI_API_KEY = ""
