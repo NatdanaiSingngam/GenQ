@@ -7,6 +7,7 @@ import {
   AlignLeft, SplitSquareHorizontal, Type, FileText,
 } from "lucide-react";
 import LoadingPage from "../components/LoadingPage";
+import { saveAttempt } from "../utils/attempts";
 
 function formatUserAnswer(q, userAnswer) {
   if (userAnswer === null || userAnswer === undefined) return "ไม่ได้ตอบ";
@@ -77,7 +78,8 @@ export default function Results() {
 
   useEffect(() => {
     if (!results) navigate("/", { replace: true });
-  }, [results, navigate]);
+    else if (results.score !== undefined) saveAttempt(id, results);
+  }, [results, navigate, id]);
 
   if (!results) return null;
 

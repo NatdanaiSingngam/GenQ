@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { getQuizList } from "../api/client";
 import { getSessionHistory, clearSessionHistory, removeFromSessionHistory } from "../utils/history";
+import { getAttemptStats } from "../utils/attempts";
 import { useAuth } from "../contexts/AuthContext";
 import LoadingPage from "../components/LoadingPage";
 
@@ -193,6 +194,19 @@ export default function History() {
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-gray-800 truncate">{source}</h3>
                         <p className="text-sm text-gray-400">{items.length} ชุด</p>
+                        {(() => {
+                          const stats = getAttemptStats(source, items);
+                          if (!stats) return null;
+                          return (
+                            <div className="flex items-center gap-2 mt-1 text-xs">
+                              <span className="text-gray-400">ทำ {stats.count} ครั้ง</span>
+                              <span className="text-gray-300">|</span>
+                              <span>ล่าสุด <span className="font-semibold text-genq-600">{stats.latest}%</span></span>
+                              <span className="text-gray-300">|</span>
+                              <span>ดีที่สุด <span className="font-semibold text-accent-600">{stats.best}%</span></span>
+                            </div>
+                          );
+                        })()}
                       </div>
                       {confirmDelete === "folder:" + source ? (
                         <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -230,7 +244,7 @@ export default function History() {
                             className="flex items-center gap-3 px-4 py-3 pl-14 hover:bg-genq-50 transition-colors group border-b border-gray-50 last:border-0"
                           >
                             <div
-                              onClick={() => navigate(`/quiz/${quiz.id}`)}
+                              onClick={() => navigate(`/quiz/${quiz.id}?mode=view`)}
                               className="flex-1 flex items-center gap-3 min-w-0 cursor-pointer"
                             >
                               <div className="w-8 h-8 bg-genq-100 rounded-lg flex items-center justify-center shrink-0">
@@ -307,7 +321,7 @@ export default function History() {
                   className="card-hover flex items-center gap-4 cursor-pointer group relative"
                 >
                   <div
-                    onClick={() => navigate(`/quiz/${quiz.id}`)}
+                    onClick={() => navigate(`/quiz/${quiz.id}?mode=view`)}
                     className="flex items-center gap-4 flex-1 min-w-0"
                   >
                     <div className="w-12 h-12 bg-genq-100 rounded-xl flex items-center justify-center shrink-0">
