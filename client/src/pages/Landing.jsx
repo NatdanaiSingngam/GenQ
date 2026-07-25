@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,10 +14,28 @@ import {
   Clock,
   Target,
   Loader2,
-  GraduationCap,
+  X,
+  Plus,
+  Minus,
+  Settings2,
+  FileCheck,
 } from "lucide-react";
-import { uploadFile, getSeedQuiz } from "../api/client";
+import { uploadFile } from "../api/client";
 import { addToSessionHistory } from "../utils/history";
+
+const QUESTION_TYPES = [
+  { key: "multipleChoice", label: "เลือกตอบ", color: "bg-blue-100 text-blue-700" },
+  { key: "trueFalse", label: "ถูก-ผิด", color: "bg-emerald-100 text-emerald-700" },
+  { key: "shortAnswer", label: "ตอบสั้น", color: "bg-amber-100 text-amber-700" },
+  { key: "completion", label: "เติมคำ", color: "bg-purple-100 text-purple-700" },
+  { key: "matching", label: "จับคู่", color: "bg-pink-100 text-pink-700" },
+  { key: "essay", label: "เรียงความ", color: "bg-rose-100 text-rose-700" },
+];
+
+const TYPE_LABELS = {
+  multipleChoice: "เลือกตอบ", trueFalse: "ถูก-ผิด", shortAnswer: "ตอบสั้น",
+  completion: "เติมคำ", matching: "จับคู่", essay: "เรียงความ",
+};
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -27,13 +45,31 @@ export default function Landing() {
   const [processingStep, setProcessingStep] = useState("");
   const [error, setError] = useState("");
 
+  // Config panel state
+  const [configFile, setConfigFile] = useState(null);
+  const [questionCounts, setQuestionCounts] = useState({
+    multipleChoice: 3, trueFalse: 1, shortAnswer: 1,
+    completion: 0, matching: 0, essay: 0,
+  });
+
+  const totalQuestions = Object.values(questionCounts).reduce((a, b) => a + b, 0);
+  const maxTotal = 100;
+
+  const adjustCount = (key, delta) => {
+    setQuestionCounts((prev) => {
+      const next = Math.max(0, Math.min(30, (prev[key] || 0) + delta));
+      const newTotal = totalQuestions - (prev[key] || 0) + next;
+      if (newTotal > maxTotal) return prev; // don't exceed max
+      return { ...prev, [key]: next };
+    });
+  };
+
   const onDrop = useCallback(
-    async (acceptedFiles, fileRejections) => {
+    (acceptedFiles, fileRejections) => {
       if (fileRejections.length > 0) {
         const rejection = fileRejections[0];
         const reason = rejection.errors?.[0]?.message || "ไฟล์ไม่ผ่านเงื่อนไข";
-        const fileName = rejection.file?.name || "";
-        setError(`❌ "${fileName}" ${reason}`);
+        setError(`❌ "${rejection.file?.name || ""}" ${reason}`);
         return;
       }
 
@@ -41,55 +77,14 @@ export default function Landing() {
       if (!file) return;
 
       setError("");
-      setUploading(true);
-      setProcessingStep("📄 กำลังอ่านเนื้อหาจากไฟล์...");
-
-      const steps = [
-        { progress: 20, text: "📄 กำลังประมวลผลไฟล์..." },
-        { progress: 40, text: "🧠 กำลังวิเคราะห์เนื้อหาด้วย AI..." },
-        { progress: 65, text: "✍️ กำลังสร้างข้อสอบ (เลือกตอบ+ถูกผิด+ตอบสั้น)..." },
-        { progress: 85, text: "🎨 กำลังจัดรูปแบบข้อสอบ..." },
-      ];
-
-      let stepIndex = 0;
-      const stepTimer = setInterval(() => {
-        if (stepIndex < steps.length) {
-          setProcessingStep(steps[stepIndex].text);
-          setUploadProgress(steps[stepIndex].progress);
-          stepIndex++;
-        }
-      }, 800);
-
-      try {
-        // Default config: 3 MC + 1 TF + 1 SA
-        const defaultConfig = { multipleChoice: 3, trueFalse: 1, shortAnswer: 1 };
-        const data = await uploadFile(file, (pct) => {
-          const p = Math.round((pct.loaded / pct.total) * 20);
-          setUploadProgress(p);
-        }, defaultConfig);
-
-        clearInterval(stepTimer);
-        setUploadProgress(100);
-        setProcessingStep("✅ พร้อมแล้ว! กำลังเปิดข้อสอบ...");
-
-        addToSessionHistory({
-          id: data.quizId, title: data.title,
-          questionCount: data.questionCount,
-          source: file.name, createdAt: new Date().toISOString(),
-        });
-
-        setTimeout(() => navigate(`/quiz/${data.quizId}`), 500);
-      } catch (err) {
-        clearInterval(stepTimer);
-        setError(
-          err.response?.data?.error ||
-          err.message ||
-          "เกิดข้อผิดพลาดในการสร้างข้อสอบ กรุณาลองใหม่"
-        );
-        setUploading(false);
-      }
+      setConfigFile(file);
+      // Reset counts to defaults
+      setQuestionCounts({
+        multipleChoice: 3, trueFalse: 1, shortAnswer: 1,
+        completion: 0, matching: 0, essay: 0,
+      });
     },
-    [navigate]
+    []
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -97,29 +92,71 @@ export default function Landing() {
     accept: {
       "application/pdf": [".pdf"],
       "application/vnd.ms-powerpoint": [".ppt", ".pptx"],
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-        [".docx"],
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
       "text/plain": [".txt"],
     },
     maxFiles: 1,
     maxSize: 100 * 1024 * 1024,
-    disabled: uploading,
+    disabled: uploading || !!configFile,
     onDragEnter: () => setDragOver(true),
     onDragLeave: () => setDragOver(false),
   });
 
-  const handleTrySeed = async () => {
+  const handleGenerate = async () => {
+    if (!configFile) return;
+
+    // Validate at least one question type selected
+    if (totalQuestions < 1) {
+      setError("❌ กรุณาเลือกจำนวนข้อสอบอย่างน้อย 1 ข้อ");
+      return;
+    }
+
+    setError("");
     setUploading(true);
-    setProcessingStep("🎯 กำลังโหลดข้อสอบตัวอย่าง...");
+    setProcessingStep("📄 กำลังอ่านเนื้อหาจากไฟล์...");
+
+    const steps = [
+      { progress: 20, text: "📄 กำลังประมวลผลไฟล์..." },
+      { progress: 40, text: "🧠 กำลังวิเคราะห์เนื้อหาด้วย AI..." },
+      { progress: 65, text: `✍️ กำลังสร้างข้อสอบ ${totalQuestions} ข้อ...` },
+      { progress: 85, text: "🎨 กำลังจัดรูปแบบข้อสอบ..." },
+    ];
+
+    let stepIndex = 0;
+    const stepTimer = setInterval(() => {
+      if (stepIndex < steps.length) {
+        setProcessingStep(steps[stepIndex].text);
+        setUploadProgress(steps[stepIndex].progress);
+        stepIndex++;
+      }
+    }, 800);
+
     try {
-      const data = await getSeedQuiz();
-      setProcessingStep("✅ พร้อมแล้ว!");
-      addToSessionHistory({ id: data.id, title: data.title, questionCount: data.questionCount, source: data.source, createdAt: new Date().toISOString() });
-      setTimeout(() => navigate(`/quiz/${data.id}`), 500);
+      const data = await uploadFile(configFile, (pct) => {
+        setUploadProgress(Math.round((pct.loaded / pct.total) * 20));
+      }, questionCounts);
+
+      clearInterval(stepTimer);
+      setUploadProgress(100);
+      setProcessingStep("✅ พร้อมแล้ว! กำลังเปิดข้อสอบ...");
+
+      addToSessionHistory({
+        id: data.quizId, title: data.title,
+        questionCount: data.questionCount,
+        source: configFile.name, createdAt: new Date().toISOString(),
+      });
+
+      setTimeout(() => navigate(`/quiz/${data.quizId}`), 500);
     } catch (err) {
-      setError("ไม่สามารถโหลดข้อสอบตัวอย่างได้");
+      clearInterval(stepTimer);
+      setError(err.response?.data?.error || err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่");
       setUploading(false);
     }
+  };
+
+  const handleCancel = () => {
+    setConfigFile(null);
+    setError("");
   };
 
   return (
@@ -163,7 +200,7 @@ export default function Landing() {
               {[
                 { icon: Clock, value: "1 นาที", label: "สร้างข้อสอบ" },
                 { icon: Brain, value: "80%", label: "อัตราจดจำ (Active Recall)" },
-                { icon: Target, value: "10 ข้อ", label: "ต่อ 1 ไฟล์" },
+                { icon: Target, value: "100 ข้อ", label: "สูงสุดต่อไฟล์" },
               ].map((stat, i) => (
                 <motion.div
                   key={i}
@@ -180,7 +217,7 @@ export default function Landing() {
             </div>
           </motion.div>
 
-          {/* Upload Zone */}
+          {/* Upload Zone / Config Panel / Uploading */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -188,7 +225,123 @@ export default function Landing() {
             className="max-w-2xl mx-auto"
           >
             <AnimatePresence mode="wait">
-              {!uploading ? (
+              {uploading ? (
+                <motion.div
+                  key="uploading"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="card text-center p-12"
+                >
+                  <div className="relative w-20 h-20 mx-auto mb-6">
+                    <div className="absolute inset-0 bg-genq-100 rounded-2xl" />
+                    <div className="relative flex items-center justify-center h-full">
+                      <Loader2 className="w-8 h-8 text-genq-600 animate-spin" />
+                    </div>
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-accent-400 rounded-full animate-pulse" />
+                  </div>
+                  <p className="text-lg font-semibold text-gray-800 mb-3">{processingStep}</p>
+                  <div className="w-full max-w-xs mx-auto bg-gray-100 rounded-full h-2 overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-genq-500 to-accent-500 rounded-full"
+                      initial={{ width: "0%" }}
+                      animate={{ width: `${uploadProgress}%` }}
+                      transition={{ duration: 0.5 }}
+                    />
+                  </div>
+                  <p className="text-sm text-gray-400 mt-3">{uploadProgress}%</p>
+                </motion.div>
+              ) : configFile ? (
+                <motion.div
+                  key="config"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="card p-8"
+                >
+                  {/* File info */}
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+                    <div className="w-12 h-12 bg-genq-100 rounded-xl flex items-center justify-center shrink-0">
+                      <FileText className="w-6 h-6 text-genq-600" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-gray-800 truncate">{configFile.name}</p>
+                      <p className="text-sm text-gray-400">
+                        {(configFile.size / 1024 / 1024).toFixed(1)} MB
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Question type selectors */}
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Settings2 className="w-5 h-5 text-genq-600" />
+                      <h3 className="text-lg font-bold text-gray-800">เลือกประเภทข้อสอบ</h3>
+                    </div>
+
+                    <div className="space-y-3">
+                      {QUESTION_TYPES.map(({ key, label, color }) => (
+                        <div key={key} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${color}`}>
+                              {label}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => adjustCount(key, -1)}
+                              disabled={questionCounts[key] === 0}
+                              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                                bg-white border border-gray-200 hover:bg-gray-100
+                                disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="w-8 text-center font-bold text-gray-800 tabular-nums">
+                              {questionCounts[key]}
+                            </span>
+                            <button
+                              onClick={() => adjustCount(key, 1)}
+                              disabled={totalQuestions >= maxTotal || questionCounts[key] >= 30}
+                              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                                bg-white border border-gray-200 hover:bg-gray-100
+                                disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Total count */}
+                  <div className="flex items-center justify-between mb-6 p-3 bg-genq-50 rounded-xl">
+                    <span className="text-sm font-medium text-genq-700">รวมทั้งหมด</span>
+                    <span className={`font-bold tabular-nums ${totalQuestions === 0 ? "text-red-500" : totalQuestions === maxTotal ? "text-accent-500" : "text-genq-700"}`}>
+                      {totalQuestions} / {maxTotal}
+                    </span>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleCancel}
+                      className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-gray-600 font-medium
+                        hover:bg-gray-50 active:scale-[0.98] transition-all duration-150"
+                    >
+                      ✕ ยกเลิก
+                    </button>
+                    <button
+                      onClick={handleGenerate}
+                      disabled={totalQuestions < 1}
+                      className="flex-1 px-4 py-3 bg-genq-600 text-white font-bold rounded-xl
+                        hover:bg-genq-700 active:scale-[0.98] transition-all duration-150
+                        disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      🚀 สร้างข้อสอบ {totalQuestions} ข้อ
+                    </button>
+                  </div>
+                </motion.div>
+              ) : (
                 <motion.div
                   key="dropzone"
                   exit={{ opacity: 0, scale: 0.95 }}
@@ -224,40 +377,14 @@ export default function Landing() {
                       <span className="px-3 py-1 bg-gray-100 rounded-full">PPTX</span>
                       <span className="px-3 py-1 bg-gray-100 rounded-full">DOCX</span>
                       <span className="px-3 py-1 bg-gray-100 rounded-full">TXT</span>
-                      <span className="px-3 py-1 bg-gray-100 rounded-full">สูงสุด 20MB</span>
+                      <span className="px-3 py-1 bg-gray-100 rounded-full">สูงสุด 100MB</span>
                     </div>
                   </div>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="uploading"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="card text-center p-12"
-                >
-                  <div className="relative w-20 h-20 mx-auto mb-6">
-                    <div className="absolute inset-0 bg-genq-100 rounded-2xl" />
-                    <div className="relative flex items-center justify-center h-full">
-                      <Loader2 className="w-8 h-8 text-genq-600 animate-spin" />
-                    </div>
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-accent-400 rounded-full animate-pulse" />
-                  </div>
-
-                  <p className="text-lg font-semibold text-gray-800 mb-3">{processingStep}</p>
-
-                  <div className="w-full max-w-xs mx-auto bg-gray-100 rounded-full h-2 overflow-hidden">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-genq-500 to-accent-500 rounded-full"
-                      initial={{ width: "0%" }}
-                      animate={{ width: `${uploadProgress}%` }}
-                      transition={{ duration: 0.5 }}
-                    />
-                  </div>
-                  <p className="text-sm text-gray-400 mt-3">{uploadProgress}%</p>
                 </motion.div>
               )}
             </AnimatePresence>
 
+            {/* Error message */}
             <AnimatePresence>
               {error && (
                 <motion.div
@@ -270,23 +397,6 @@ export default function Landing() {
                 </motion.div>
               )}
             </AnimatePresence>
-
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
-              className="mt-6 text-center"
-            >
-              <button
-                onClick={handleTrySeed}
-                disabled={uploading}
-                className="inline-flex items-center gap-2 text-genq-600 hover:text-genq-700 font-medium text-sm transition-colors group"
-              >
-                <GraduationCap className="w-4 h-4" />
-                <span>หรือลองทําข้อสอบตัวอย่างทันที (ไม่ต้องอัปโหลดไฟล์)</span>
-                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </button>
-            </motion.div>
           </motion.div>
         </div>
       </section>
@@ -309,7 +419,7 @@ export default function Landing() {
           <div className="grid sm:grid-cols-3 gap-8">
             {[
               { icon: Upload, step: "1", title: "ลาก & วางไฟล์", desc: "ลากไฟล์สไลด์เรียน PDF หรือ PPTX มาวางบนหน้าเว็บ", color: "from-genq-500 to-genq-600" },
-              { icon: Brain, step: "2", title: "AI สร้างข้อสอบ", desc: "ระบบ AI วิเคราะห์เนื้อหาและสร้างข้อสอบแบบเลือกตอบ ถูกผิด และตอบสั้น พร้อมเฉลย", color: "from-accent-500 to-accent-600" },
+              { icon: Settings2, step: "2", title: "เลือกประเภทข้อสอบ", desc: "เลือกรูปแบบข้อสอบที่ต้องการ ทั้งเลือกตอบ ถูกผิด ตอบสั้น เติมคำ จับคู่ หรือเรียงความ", color: "from-accent-500 to-accent-600" },
               { icon: CheckCircle2, step: "3", title: "ทดสอบ & รู้ผลทันที", desc: "กดเลือกคำตอบ ดูเฉลยและคำอธิบาย รู้จุดอ่อนของตัวเองก่อนสอบ", color: "from-genq-600 to-genq-800" },
             ].map((item, i) => (
               <motion.div
