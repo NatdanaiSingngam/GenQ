@@ -34,7 +34,15 @@ export default function History() {
 
         const serverIds = new Set(serverQuizzes.map((q) => q.id));
         const merged = [...serverQuizzes, ...sessionQuizzes.filter((q) => !serverIds.has(q.id))];
-        setQuizzes(merged);
+
+        // For logged-in users, also filter out server-returned quizzes that were deleted
+        const { getDeletedIds } = await import("../utils/history");
+        const deletedIds = getDeletedIds();
+        if (deletedIds.size > 0) {
+          setQuizzes(merged.filter((q) => !deletedIds.has(q.id)));
+        } else {
+          setQuizzes(merged);
+        }
       } catch {
         setQuizzes(getSessionHistory());
       } finally {
