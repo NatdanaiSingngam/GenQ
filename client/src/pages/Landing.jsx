@@ -28,7 +28,15 @@ export default function Landing() {
   const [error, setError] = useState("");
 
   const onDrop = useCallback(
-    async (acceptedFiles) => {
+    async (acceptedFiles, fileRejections) => {
+      if (fileRejections.length > 0) {
+        const rejection = fileRejections[0];
+        const reason = rejection.errors?.[0]?.message || "ไฟล์ไม่ผ่านเงื่อนไข";
+        const fileName = rejection.file?.name || "";
+        setError(`❌ "${fileName}" ${reason}`);
+        return;
+      }
+
       const file = acceptedFiles[0];
       if (!file) return;
 
@@ -94,7 +102,7 @@ export default function Landing() {
       "text/plain": [".txt"],
     },
     maxFiles: 1,
-    maxSize: 20 * 1024 * 1024,
+    maxSize: 100 * 1024 * 1024,
     disabled: uploading,
     onDragEnter: () => setDragOver(true),
     onDragLeave: () => setDragOver(false),
