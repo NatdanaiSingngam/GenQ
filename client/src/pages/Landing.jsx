@@ -17,6 +17,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { uploadFile, getSeedQuiz } from "../api/client";
+import { addToSessionHistory } from "../utils/history";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -27,53 +28,10 @@ export default function Landing() {
   const [error, setError] = useState("");
 
   const onDrop = useCallback(
-    async (acceptedFiles) => {
+    (acceptedFiles) => {
       const file = acceptedFiles[0];
       if (!file) return;
-
-      setError("");
-      setUploading(true);
-      setProcessingStep("⏳ กำลังอ่านเนื้อหาจากไฟล์...");
-
-      try {
-        const steps = [
-          { progress: 20, text: "📄 กำลังประมวลผลไฟล์..." },
-          { progress: 40, text: "🧠 กำลังวิเคราะห์เนื้อหาด้วย AI..." },
-          { progress: 65, text: "✍️ กำลังสร้างข้อสอบ..." },
-          { progress: 85, text: "🎨 กำลังจัดรูปแบบข้อสอบ..." },
-        ];
-
-        let stepIndex = 0;
-        const stepTimer = setInterval(() => {
-          if (stepIndex < steps.length) {
-            setProcessingStep(steps[stepIndex].text);
-            setUploadProgress(steps[stepIndex].progress);
-            stepIndex++;
-          }
-        }, 800);
-
-        const data = await uploadFile(file, (progressEvent) => {
-          const pct = Math.round(
-            (progressEvent.loaded / progressEvent.total) * 20
-          );
-          setUploadProgress(pct);
-        });
-
-        clearInterval(stepTimer);
-        setUploadProgress(100);
-        setProcessingStep("✅ พร้อมแล้ว! กำลังเปิดข้อสอบ...");
-
-        setTimeout(() => {
-          navigate(`/quiz/${data.quizId}`);
-        }, 500);
-      } catch (err) {
-        setError(
-          err.response?.data?.error ||
-            err.message ||
-            "เกิดข้อผิดพลาดในการอัปโหลดไฟล์"
-        );
-        setUploading(false);
-      }
+      navigate("/config", { state: { file } });
     },
     [navigate]
   );
@@ -100,6 +58,7 @@ export default function Landing() {
     try {
       const data = await getSeedQuiz();
       setProcessingStep("✅ พร้อมแล้ว!");
+      addToSessionHistory({ id: data.id, title: data.title, questionCount: data.questionCount, source: data.source, createdAt: new Date().toISOString() });
       setTimeout(() => navigate(`/quiz/${data.id}`), 500);
     } catch (err) {
       setError("ไม่สามารถโหลดข้อสอบตัวอย่างได้");

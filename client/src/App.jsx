@@ -5,6 +5,7 @@ import LoadingPage from "./components/LoadingPage";
 import { AuthProvider } from "./contexts/AuthContext";
 
 const Landing = lazy(() => import("./pages/Landing"));
+const QuizConfig = lazy(() => import("./pages/QuizConfig"));
 const Quiz = lazy(() => import("./pages/Quiz"));
 const Results = lazy(() => import("./pages/Results"));
 const History = lazy(() => import("./pages/History"));
@@ -18,6 +19,7 @@ export default function App() {
           <Suspense fallback={<LoadingPage />}>
             <Routes>
               <Route path="/" element={<Landing />} />
+              <Route path="/config" element={<QuizConfig />} />
               <Route path="/quiz/:id" element={<Quiz />} />
               <Route path="/results/:id" element={<Results />} />
               <Route path="/history" element={<History />} />

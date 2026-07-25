@@ -7,24 +7,75 @@ import { SEED_DATA } from "./seed.js";
 // AI Quiz Generation — Workers AI (primary) + Gemini (secondary) + Mock (fallback)
 // ---------------------------------------------------------------------------
 
-// Shared prompt template
-const QUIZ_PROMPT = `สร้างข้อสอบแบบ multiple-choice 5 ข้อจากเนื้อหาต่อไปนี้
+// ---------------------------------------------------------------------------
+// Quiz Type Configuration
+// ---------------------------------------------------------------------------
+function buildQuizPrompt(config, text) {
+  const parts = [];
+  if (config.multipleChoice > 0) parts.push(`- แบบเลือกตอบ (Multiple Choice) ${config.multipleChoice} ข้อ: มี 4 ตัวเลือก`);
+  if (config.trueFalse > 0) parts.push(`- แบบถูก-ผิด (True-False) ${config.trueFalse} ข้อ: มี 2 ตัวเลือก (ถูก/ผิด)`);
+  if (config.completion > 0) parts.push(`- แบบเติมคำ (Completion) ${config.completion} ข้อ: มีช่องว่างให้เติมคำ`);
+  if (config.matching > 0) parts.push(`- แบบจับคู่ (Matching) ${config.matching} ข้อ: จับคู่ซ้าย-ขวา อย่างละ 3-5 รายการ`);
+  if (config.shortAnswer > 0) parts.push(`- แบบตอบสั้น (Short Answer) ${config.shortAnswer} ข้อ: ตอบสั้นๆ 1-2 คำ`);
+  if (config.essay > 0) parts.push(`- แบบเขียนตอบ (Essay) ${config.essay} ข้อ: เขียนอธิบาย 1 ย่อหน้า`);
 
-รูปแบบ: JSON เท่านั้น
+  const typeDesc = parts.length > 0 ? parts.join("\n") : "- แบบเลือกตอบ (Multiple Choice) 5 ข้อ";
+
+  return `สร้างข้อสอบหลากหลายประเภทจากเนื้อหาต่อไปนี้
+
+ประเภทข้อสอบที่ต้องการ:
+${typeDesc}
+
+รูปแบบ JSON:
 {
-  "title": "ชื่อข้อสอบ",
+  "title": "ชื่อข้อสอบที่สื่อถึงเนื้อหา",
   "questions": [
     {
-      "question": "คำถาม",
+      "type": "multiple-choice",
+      "question": "คำถาม?",
       "options": ["ก", "ข", "ค", "ง"],
       "correctIndex": 0,
-      "explanation": "คำอธิบาย"
+      "explanation": "เหตุผล"
+    },
+    {
+      "type": "true-false",
+      "question": "ข้อความนี้...",
+      "correctIndex": 0,
+      "explanation": "เหตุผล"
+    },
+    {
+      "type": "completion",
+      "question": "ข้อความ ___ เติมคำ",
+      "answer": "คำตอบที่ถูก",
+      "acceptableAnswers": ["คำตอบ1", "คำตอบ2"],
+      "explanation": "เหตุผล"
+    },
+    {
+      "type": "matching",
+      "question": "จับคู่...",
+      "pairs": [{"left": "ซ้าย1", "right": "ขวา1"}, {"left": "ซ้าย2", "right": "ขวา2"}],
+      "explanation": "เหตุผล"
+    },
+    {
+      "type": "short-answer",
+      "question": "คำถามสั้น?",
+      "answer": "คำตอบ",
+      "keywords": ["คีย์1", "คีย์2"],
+      "explanation": "เหตุผล"
+    },
+    {
+      "type": "essay",
+      "question": "อธิบาย...",
+      "guidelines": ["ประเด็นที่ควรมี", "แนวคิดสำคัญ"],
+      "explanation": "แนวคำตอบ"
     }
   ]
 }
-ภาษาไทยเท่านั้น
+
+ภาษาไทยเท่านั้น จำนวนข้อตามที่กำหนด
 
 เนื้อหา:`;
+}
 
 function parseAIResponse(rawText, filename) {
   const jsonStr = rawText
@@ -34,23 +85,31 @@ function parseAIResponse(rawText, filename) {
   const parsed = JSON.parse(jsonStr);
   return {
     title: parsed.title || `Quiz: ${filename}`,
-    questions: (parsed.questions || []).map((q, i) => ({
-      ...q,
-      id: `q${i + 1}`,
-    })),
+    questions: (parsed.questions || []).map((q, i) => {
+      const base = { ...q, id: `q${i + 1}` };
+      // Default type if missing
+      if (!base.type) base.type = "multiple-choice";
+      // Ensure options for MC/TF
+      if ((base.type === "multiple-choice" || base.type === "true-false") && !base.options) {
+        base.options = base.type === "true-false" ? ["ถูก", "ผิด"] : ["ก", "ข", "ค", "ง"];
+      }
+      return base;
+    }),
   };
 }
 
-async function generateQuizWithWorkersAI(env, text, filename) {
+async function generateQuizWithWorkersAI(env, text, filename, config) {
   const ai = env.AI;
   if (!ai) throw new Error("AI binding not available");
+
+  const prompt = buildQuizPrompt(config || {}, text);
 
   const response = await ai.run("@cf/meta/llama-3.2-3b-instruct", {
     messages: [
       { role: "system", content: "You are a quiz generator. Always respond with valid JSON only." },
-      { role: "user", content: `${QUIZ_PROMPT}\n\n${text.slice(0, 1500)}` },
+      { role: "user", content: `${prompt}\n\n${text.slice(0, 1500)}` },
     ],
-    max_tokens: 2048,
+    max_tokens: 4096,
     temperature: 0.7,
   });
 
@@ -60,8 +119,8 @@ async function generateQuizWithWorkersAI(env, text, filename) {
   return parseAIResponse(rawText, filename);
 }
 
-async function generateQuizWithGemini(apiKey, text, filename) {
-  const prompt = `${QUIZ_PROMPT}\n\n${text.slice(0, 3000)}`;
+async function generateQuizWithGemini(apiKey, text, filename, config) {
+  const prompt = `${buildQuizPrompt(config || {}, text)}\n\n${text.slice(0, 3000)}`;
 
   const resp = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -89,7 +148,7 @@ async function generateQuizWithGemini(apiKey, text, filename) {
 // ---------------------------------------------------------------------------
 // Mock quiz generator (used when GEMINI_API_KEY is not set)
 // ---------------------------------------------------------------------------
-function generateMockQuiz(filename) {
+function generateMockQuiz(filename, config) {
   const subjects = [
     {
       name: "Database Systems",
@@ -125,10 +184,79 @@ function generateMockQuiz(filename) {
 
   const hash = filename.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
   const subject = subjects[hash % subjects.length];
-  return {
-    title: `Quiz: ${filename}`,
-    questions: subject.questions.map((q, i) => ({ ...q, id: `q${i + 1}` })),
-  };
+  const baseQuestions = subject.questions.map((q, i) => ({ ...q, id: `q${i + 1}`, type: "multiple-choice" }));
+
+  // If config says true-false, convert some
+  const totalAsked = (config?.multipleChoice || 0) + (config?.trueFalse || 0) + (config?.completion || 0) + (config?.shortAnswer || 0) + (config?.essay || 0);
+  if (totalAsked < 1) {
+    return { title: `Quiz: ${filename}`, questions: baseQuestions.slice(0, 5) };
+  }
+
+  // Build mixed types from mock data
+  const result = [];
+  let idx = 0;
+
+  // Multiple Choice
+  for (let i = 0; i < (config?.multipleChoice || 0); i++) {
+    const q = baseQuestions[idx % baseQuestions.length];
+    result.push({ ...q, id: `q${result.length + 1}` });
+    idx++;
+  }
+
+  // True-False (convert from MC)
+  for (let i = 0; i < (config?.trueFalse || 0); i++) {
+    const q = baseQuestions[idx % baseQuestions.length];
+    result.push({
+      id: `q${result.length + 1}`,
+      type: "true-false",
+      question: `${q.question} — ข้อความนี้ถูกต้องหรือไม่?`,
+      options: ["ถูก", "ผิด"],
+      correctIndex: Math.random() > 0.5 ? 0 : 1,
+      explanation: q.explanation,
+    });
+    idx++;
+  }
+
+  // Completion
+  for (let i = 0; i < (config?.completion || 0); i++) {
+    const q = baseQuestions[idx % baseQuestions.length];
+    result.push({
+      id: `q${result.length + 1}`,
+      type: "completion",
+      question: q.question.replace(/[ะาเแโใไ]/g, "___") || "ให้เติมคำที่ถูกต้องในช่องว่าง",
+      answer: q.options?.[0] || "คำตอบ",
+      acceptableAnswers: [q.options?.[0] || "คำตอบ"],
+      explanation: q.explanation,
+    });
+    idx++;
+  }
+
+  // Short Answer
+  for (let i = 0; i < (config?.shortAnswer || 0); i++) {
+    const q = baseQuestions[idx % baseQuestions.length];
+    result.push({
+      id: `q${result.length + 1}`,
+      type: "short-answer",
+      question: `${q.question} (ตอบสั้นๆ)`,
+      answer: q.options?.[0] || "คำตอบ",
+      keywords: [(q.options?.[0] || "").substring(0, 5)],
+      explanation: q.explanation,
+    });
+    idx++;
+  }
+
+  // Essay
+  for (let i = 0; i < (config?.essay || 0); i++) {
+    result.push({
+      id: `q${result.length + 1}`,
+      type: "essay",
+      question: `อธิบายเกี่ยวกับ ${subject.name} และประยุกต์ใช้ในชีวิตจริง พร้อมยกตัวอย่างประกอบ`,
+      guidelines: ["อธิบายแนวคิดหลัก", "ยกตัวอย่างประกอบ", "อธิบายการประยุกต์ใช้"],
+      explanation: "คำตอบควรครอบคลุมแนวคิดหลัก พร้อมตัวอย่างและประยุกต์ใช้",
+    });
+  }
+
+  return { title: `Quiz: ${filename}`, questions: result.slice(0, totalAsked) };
 }
 
 // ---------------------------------------------------------------------------
@@ -365,16 +493,37 @@ app.get("/api/quiz/seed/data", async (c) => {
   });
 });
 
-// GET /api/quiz/:id — Fetch quiz (without correct answers)
+// GET /api/quiz/:id — Fetch quiz (without answers)
 app.get("/api/quiz/:id", async (c) => {
   const quiz = await loadQuiz(c.env, c.req.param("id"));
   if (!quiz) return c.json({ error: "Quiz not found" }, 404);
 
-  const publicQuestions = quiz.questions.map((q) => ({
-    id: q.id,
-    question: q.question,
-    options: q.options,
-  }));
+  const publicQuestions = quiz.questions.map((q) => {
+    const base = { id: q.id, type: q.type || "multiple-choice", question: q.question };
+    switch (q.type) {
+      case "true-false":
+        base.options = ["ถูก", "ผิด"];
+        break;
+      case "multiple-choice":
+        base.options = q.options || [];
+        break;
+      case "matching":
+        if (q.pairs) {
+          base.leftColumn = q.pairs.map((p) => ({ id: p.left, text: p.left }));
+          base.rightColumn = q.pairs.map((p) => ({ id: p.right, text: p.right })).sort(() => Math.random() - 0.5);
+        }
+        break;
+      case "completion":
+        base.hasBlank = true;
+        break;
+      case "short-answer":
+        break;
+      case "essay":
+        base.guidelines = q.guidelines || [];
+        break;
+    }
+    return base;
+  });
 
   return c.json({
     id: quiz.id,
@@ -386,7 +535,7 @@ app.get("/api/quiz/:id", async (c) => {
   });
 });
 
-// POST /api/quiz/:id/submit — Submit answers & get results
+// POST /api/quiz/:id/submit — Submit answers & get results (handles all types)
 app.post("/api/quiz/:id/submit", async (c) => {
   const quiz = await loadQuiz(c.env, c.req.param("id"));
   if (!quiz) return c.json({ error: "Quiz not found" }, 404);
@@ -397,24 +546,69 @@ app.post("/api/quiz/:id/submit", async (c) => {
   }
 
   let correctCount = 0;
+  let autoGradeCount = 0;
+
   const results = quiz.questions.map((q) => {
     const userAnswer = answers[q.id];
-    const isCorrect = userAnswer === q.correctIndex;
-    if (isCorrect) correctCount++;
+    let isCorrect = false;
+    let autoGrade = true;
+
+    switch (q.type || "multiple-choice") {
+      case "multiple-choice":
+      case "true-false":
+        isCorrect = userAnswer === q.correctIndex;
+        break;
+      case "completion": {
+        const userText = (userAnswer || "").trim().toLowerCase();
+        const acceptable = (q.acceptableAnswers || [q.answer]).map((a) => a.trim().toLowerCase());
+        isCorrect = acceptable.some((a) => userText.includes(a) || a.includes(userText));
+        break;
+      }
+      case "short-answer": {
+        const userText = (userAnswer || "").trim().toLowerCase();
+        const kws = (q.keywords || [q.answer || ""]).map((k) => k.trim().toLowerCase());
+        isCorrect = kws.some((kw) => userText.includes(kw));
+        break;
+      }
+      case "matching":
+        if (userAnswer && typeof userAnswer === "object") {
+          const pairs = q.pairs || [];
+          isCorrect = pairs.every((p) => userAnswer[p.left] === p.right);
+        }
+        break;
+      case "essay":
+        autoGrade = false;
+        isCorrect = (userAnswer || "").trim().length > 20;
+        break;
+      default:
+        isCorrect = userAnswer === q.correctIndex;
+    }
+
+    if (isCorrect && autoGrade) correctCount++;
+    if (autoGrade) autoGradeCount++;
+
     return {
       id: q.id,
+      type: q.type || "multiple-choice",
       question: q.question,
       options: q.options,
+      pairs: q.pairs,
+      answer: q.answer,
+      acceptableAnswers: q.acceptableAnswers,
+      keywords: q.keywords,
+      guidelines: q.guidelines,
       correctIndex: q.correctIndex,
       userAnswer: userAnswer ?? null,
       isCorrect,
+      autoGrade,
       explanation: q.explanation,
     };
   });
 
   const total = quiz.questions.length;
-  const score = Math.round((correctCount / total) * 100);
-  const grade = score >= 80 ? "A" : score >= 70 ? "B" : score >= 60 ? "C" : score >= 50 ? "D" : "F";
+  const score = autoGradeCount > 0 ? Math.round((correctCount / autoGradeCount) * 100) : 0;
+  const pendingCount = results.filter((r) => !r.autoGrade).length;
+  const grade = pendingCount > 0 ? "รอตรวจ" : score >= 80 ? "A" : score >= 70 ? "B" : score >= 60 ? "C" : score >= 50 ? "D" : "F";
 
   return c.json({
     quizId: quiz.id,
@@ -423,8 +617,11 @@ app.post("/api/quiz/:id/submit", async (c) => {
     grade,
     correctCount,
     total,
+    autoGradeCount,
+    pendingCount,
     questions: results,
-    weakAreas: results.filter((r) => !r.isCorrect).map((r) => r.question),
+    weakAreas: results.filter((r) => !r.isCorrect && r.autoGrade).map((r) => r.question),
+    pendingQuestions: results.filter((r) => !r.autoGrade).map((r) => ({ id: r.id, question: r.question })),
   });
 });
 
@@ -466,6 +663,15 @@ app.post("/api/upload", async (c) => {
       }
     }
 
+    // Read quiz config from formData (question type counts)
+    let config = {};
+    try {
+      const configStr = formData.get("config");
+      if (configStr) config = JSON.parse(configStr);
+    } catch {}
+    const totalAsked = Object.values(config).reduce((s, v) => s + (parseInt(v) || 0), 0);
+    if (totalAsked < 1) config = { multipleChoice: 5 };
+
     // Generate quiz — Workers AI (freshest, no quota worries)
     let quizData = null;
     let genError = null;
@@ -473,7 +679,7 @@ app.post("/api/upload", async (c) => {
     // 1st try: Workers AI (built-in, free 10k req/day)
     if (c.env.AI) {
       try {
-        quizData = await generateQuizWithWorkersAI(c.env, text, filename);
+        quizData = await generateQuizWithWorkersAI(c.env, text, filename, config);
         console.log("AI source: Workers AI");
       } catch (e) {
         genError = e;
@@ -484,7 +690,7 @@ app.post("/api/upload", async (c) => {
     // 2nd try: Gemini API (if Workers AI failed)
     if (!quizData && c.env.GEMINI_API_KEY) {
       try {
-        quizData = await generateQuizWithGemini(c.env.GEMINI_API_KEY, text, filename);
+        quizData = await generateQuizWithGemini(c.env.GEMINI_API_KEY, text, filename, config);
         console.log("AI source: Gemini");
       } catch (e) {
         genError = e;
@@ -495,7 +701,7 @@ app.post("/api/upload", async (c) => {
     // 3rd fallback: Mock quiz
     if (!quizData) {
       console.error("All AI failed, using mock. Last error:", genError?.message.slice(0, 60));
-      quizData = generateMockQuiz(filename);
+      quizData = generateMockQuiz(filename, config);
     }
 
     // Save to store

@@ -9,9 +9,12 @@ const api = axios.create({
   timeout: 120000, // 2 min for AI processing
 });
 
-export async function uploadFile(file, onProgress) {
+export async function uploadFile(file, onProgress, config) {
   const formData = new FormData();
   formData.append("file", file);
+  if (config) {
+    formData.append("config", JSON.stringify(config));
+  }
 
   const { data } = await api.post("/upload", formData, {
     headers: { "Content-Type": "multipart/form-data" },
