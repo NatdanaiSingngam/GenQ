@@ -9,6 +9,11 @@ export default {
         sans: ['"Kanit"', '"Inter"', ...defaultTheme.fontFamily.sans],
       },
       colors: {
+        surface: "#1E293B",
+        surfaceHover: "#334155",
+        borderDark: "#334155",
+        heading: "#F8FAFC",
+        muted: "#94A3B8",
         accent: {
           400: "#818CF8",
           500: "#6366F1",
