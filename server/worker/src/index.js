@@ -568,6 +568,7 @@ app.post("/api/quiz/:id/submit", async (c) => {
         break;
       case "completion": {
         const userText = (userAnswer || "").trim().toLowerCase();
+        if (!userText) { isCorrect = false; break; }
         const acceptable = (q.acceptableAnswers || [q.answer]).map((a) => a.trim().toLowerCase());
         isCorrect = acceptable.some((a) => userText.includes(a) || a.includes(userText));
         break;
