@@ -1,608 +1,387 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Upload,
-  FileText,
-  Brain,
-  Sparkles,
-  ChevronRight,
-  CheckCircle2,
-  BookOpen,
-  Zap,
-  Clock,
-  Target,
-  Loader2,
-  X,
-  Plus,
-  Minus,
-  Settings2,
-  FileCheck,
+  Upload, FileText, Brain, Sparkles, ChevronRight, CheckCircle2, BookOpen,
+  Zap, Clock, Target, Loader2, X, Plus, Minus, Settings2, FileCheck,
+  Search, History, Wand2,
 } from "lucide-react";
 import { uploadFile } from "../api/client";
 import { addToSessionHistory, getSessionHistory } from "../utils/history";
 
+const ACCEPTED = {
+  "application/pdf": [".pdf"],
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+  "text/plain": [".txt"],
+};
+
 const QUESTION_TYPES = [
-  { key: "multipleChoice", label: "เลือกตอบ", color: "bg-blue-100 text-blue-700" },
-  { key: "trueFalse", label: "ถูก-ผิด", color: "bg-emerald-100 text-emerald-700" },
-  { key: "shortAnswer", label: "ตอบสั้น", color: "bg-amber-100 text-amber-700" },
-  { key: "completion", label: "เติมคำ", color: "bg-purple-100 text-purple-700" },
-  { key: "matching", label: "จับคู่", color: "bg-pink-100 text-pink-700" },
+  { key: "multipleChoice", label: "เลือกตอบ", icon: CheckCircle2, color: "from-indigo-400 to-indigo-500" },
+  { key: "trueFalse", label: "ถูก-ผิด", icon: X, color: "from-emerald-400 to-emerald-500" },
+  { key: "shortAnswer", label: "ตอบสั้น", icon: Zap, color: "from-amber-400 to-amber-500" },
+  { key: "completion", label: "เติมคำ", icon: FileText, color: "from-violet-400 to-violet-500" },
+  { key: "matching", label: "จับคู่", icon: BookOpen, color: "from-rose-400 to-rose-500" },
 ];
 
-const TYPE_LABELS = {
-  multipleChoice: "เลือกตอบ", trueFalse: "ถูก-ผิด", shortAnswer: "ตอบสั้น",
-  completion: "เติมคำ", matching: "จับคู่",
-};
+const DEFAULT_CONFIG = { multipleChoice: 3, trueFalse: 1, shortAnswer: 1, completion: 0, matching: 0 };
 
 export default function Landing() {
   const navigate = useNavigate();
+  const [configFile, setConfigFile] = useState(null);
+  const [questionCounts, setQuestionCounts] = useState(DEFAULT_CONFIG);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [dragOver, setDragOver] = useState(false);
-  const [processingStep, setProcessingStep] = useState("");
   const [error, setError] = useState("");
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [showSearch, setShowSearch] = useState(false);
 
-  // Config panel state
-  const [configFile, setConfigFile] = useState(null);
-  const [questionCounts, setQuestionCounts] = useState({
-    multipleChoice: 3, trueFalse: 1, shortAnswer: 1,
-    completion: 0, matching: 0,
+  // Query history on global search
+  useEffect(() => {
+    if (!globalSearch.trim()) {
+      setSearchResults([]);
+      setShowSearch(false);
+      return;
+    }
+    const q = globalSearch.toLowerCase();
+    const history = getSessionHistory();
+    const matched = history.filter(
+      (h) =>
+        h.title?.toLowerCase().includes(q) || h.source?.toLowerCase().includes(q)
+    );
+    setSearchResults(matched);
+    setShowSearch(matched.length > 0);
+  }, [globalSearch]);
+
+  const onDrop = useCallback((acceptedFiles, fileRejections) => {
+    setError("");
+    if (fileRejections.length > 0) {
+      const r = fileRejections[0];
+      if (r.errors?.[0]?.code === "file-too-large") {
+        setError("❌ ไฟล์ใหญ่เกินไป (สูงสุด 15MB)");
+      } else if (r.errors?.[0]?.code === "file-invalid-type") {
+        setError("❌ รองรับเฉพาะไฟล์ PDF, PPTX, DOCX, TXT");
+      } else {
+        setError("❌ " + (r.errors?.[0]?.message || "ไฟล์ไม่ถูกต้อง"));
+      }
+      return;
+    }
+    if (acceptedFiles.length > 0) {
+      setConfigFile(acceptedFiles[0]);
+    }
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: ACCEPTED,
+    maxSize: 15 * 1024 * 1024,
+    multiple: false,
   });
-
-  const totalQuestions = Object.values(questionCounts).reduce((a, b) => a + b, 0);
-  const maxTotal = 40;
 
   const adjustCount = (key, delta) => {
     setQuestionCounts((prev) => {
-      const next = Math.max(0, Math.min(15, (prev[key] || 0) + delta));
-      const newTotal = totalQuestions - (prev[key] || 0) + next;
-      if (newTotal > maxTotal) return prev; // don't exceed max
+      const current = prev[key] || 0;
+      const next = Math.max(0, Math.min(15, current + delta));
       return { ...prev, [key]: next };
     });
   };
 
-  const setCountValue = (key, raw) => {
-    const val = parseInt(raw, 10);
-    if (isNaN(val) || val < 0) return;
-    setQuestionCounts((prev) => {
-      const clamped = Math.min(val, 15);
-      const newTotal = totalQuestions - (prev[key] || 0) + clamped;
-      if (newTotal > maxTotal) {
-        // Cap to max possible while staying ≤ maxTotal
-        const maxForThis = Math.max(0, maxTotal - (totalQuestions - (prev[key] || 0)));
-        return { ...prev, [key]: Math.min(clamped, maxForThis) };
-      }
-      return { ...prev, [key]: clamped };
-    });
+  const setCountDirect = (key, val) => {
+    const num = parseInt(val) || 0;
+    setQuestionCounts((prev) => ({ ...prev, [key]: Math.max(0, Math.min(15, num)) }));
   };
 
-  const onDrop = useCallback(
-    (acceptedFiles, fileRejections) => {
-      if (fileRejections.length > 0) {
-        const rejection = fileRejections[0];
-        const reason = rejection.errors?.[0]?.message || "ไฟล์ไม่ผ่านเงื่อนไข";
-        setError(`❌ "${rejection.file?.name || ""}" ${reason}`);
-        return;
-      }
-
-      const file = acceptedFiles[0];
-      if (!file) return;
-
-      setError("");
-      setConfigFile(file);
-      // Reset counts to defaults
-      setQuestionCounts({
-        multipleChoice: 3, trueFalse: 1, shortAnswer: 1,
-        completion: 0, matching: 0,
-      });
-    },
-    []
-  );
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      "application/pdf": [".pdf"],
-      "application/vnd.ms-powerpoint": [".ppt", ".pptx"],
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-      "text/plain": [".txt"],
-    },
-    maxFiles: 1,
-    maxSize: 15 * 1024 * 1024,
-    disabled: uploading || !!configFile,
-    onDragEnter: () => setDragOver(true),
-    onDragLeave: () => setDragOver(false),
-  });
+  const totalSelected = Object.values(questionCounts).reduce((a, b) => a + b, 0);
 
   const handleGenerate = async () => {
-    if (!configFile) return;
-
-    // Validate at least one question type selected
-    if (totalQuestions < 1) {
-      setError("❌ กรุณาเลือกจำนวนข้อสอบอย่างน้อย 1 ข้อ");
-      return;
-    }
-
+    if (!configFile || totalSelected === 0) return;
     setError("");
     setUploading(true);
-    setProcessingStep("📄 กำลังอ่านเนื้อหาจากไฟล์...");
-
-    const steps = [
-      { progress: 20, text: "📄 กำลังประมวลผลไฟล์..." },
-      { progress: 40, text: "🧠 กำลังวิเคราะห์เนื้อหาด้วย AI..." },
-      { progress: 65, text: `✍️ กำลังสร้างข้อสอบ ${totalQuestions} ข้อ...` },
-      { progress: 85, text: "🎨 กำลังจัดรูปแบบข้อสอบ..." },
-    ];
-
-    let stepIndex = 0;
-    const stepTimer = setInterval(() => {
-      if (stepIndex < steps.length) {
-        setProcessingStep(steps[stepIndex].text);
-        setUploadProgress(steps[stepIndex].progress);
-        stepIndex++;
-      }
-    }, 800);
+    setUploadProgress(0);
 
     try {
-      // Calculate round from existing history entries (not localStorage)
       const existingHistory = getSessionHistory().filter((h) => h.source === configFile.name);
       const round = existingHistory.length + 1;
       const configWithRound = { ...questionCounts, _r: round };
 
-      const data = await uploadFile(configFile, (pct) => {
+      const result = await uploadFile(configFile, configWithRound, (pct) => {
         setUploadProgress(Math.round((pct.loaded / pct.total) * 20));
-      }, configWithRound);
-
-      clearInterval(stepTimer);
-      setUploadProgress(100);
-      setProcessingStep("✅ พร้อมแล้ว! กำลังเปิดข้อสอบ...");
-
-      addToSessionHistory({
-        id: data.quizId, title: data.title,
-        questionCount: data.questionCount,
-        source: configFile.name, round,
-        createdAt: new Date().toISOString(),
       });
 
-      setTimeout(() => navigate(`/quiz/${data.quizId}`), 500);
+      addToSessionHistory({
+        id: result.quizId,
+        title: result.title,
+        source: configFile.name,
+        round,
+        createdAt: new Date().toISOString(),
+        questionCount: result.questionCount,
+      });
+
+      navigate(`/quiz/${result.quizId}?mode=view`);
     } catch (err) {
-      clearInterval(stepTimer);
-      // Try to extract a useful error message
-      let msg = err.response?.data?.error || err.response?.data || err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่";
-      // If the response body is plain text (e.g. "error code: 1102"), show user-friendly message
-      if (typeof msg === "string" && msg.includes("1102")) {
-        msg = "ไฟล์มีขนาดใหญ่เกินไป (🤏 จำกัดที่ 15MB สำหรับบริการฟรี) หรือข้อสอบมากเกินไป กรุณาลดขนาดหรือจำนวนข้อสอบแล้วลองใหม่";
-      } else if (typeof msg !== "string") {
-        msg = "เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่";
+      const msg = err.response?.data?.error || err.message || "เกิดข้อผิดพลาด";
+      if (msg.includes("1102") || msg.includes("CPU")) {
+        setError("❌ ไฟล์ใหญ่เกินไป (จำกัด 15MB) — ลองลดขนาดไฟล์");
+      } else {
+        setError("❌ " + msg);
       }
-      setError(msg);
       setUploading(false);
     }
   };
 
-  const handleCancel = () => {
-    setConfigFile(null);
-    setError("");
-  };
+  const totalAll = totalSelected;
 
   return (
-    <div className="min-h-[calc(100vh-64px)]">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-genq-600 via-genq-700 to-genq-900 opacity-[0.03]" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-gradient-to-br from-genq-400/10 to-transparent rounded-full blur-3xl" />
+    <div className="min-h-[calc(100vh-4rem)] flex flex-col">
+      {/* Global Search */}
+      <div className="relative max-w-2xl mx-auto w-full mt-8 mb-6 px-4">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#64748B]" />
+          <input
+            type="text"
+            placeholder="ค้นหาข้อสอบที่เคยสร้าง..."
+            value={globalSearch}
+            onChange={(e) => setGlobalSearch(e.target.value)}
+            className="w-full pl-12 pr-4 py-3.5 bg-[#1E293B] border-2 border-[#334155] rounded-2xl text-[#F8FAFC] placeholder-[#64748B] focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all text-base"
+          />
+          {globalSearch && (
+            <button onClick={() => setGlobalSearch("")} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#F8FAFC]">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-16 pb-12 sm:pt-24 sm:pb-20 relative">
+        {/* Search results */}
+        <AnimatePresence>
+          {showSearch && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="absolute top-full left-4 right-4 mt-2 bg-[#1E293B] border border-[#334155] rounded-2xl shadow-2xl shadow-black/40 overflow-hidden z-50"
+            >
+              {searchResults.slice(0, 5).map((quiz) => (
+                <div
+                  key={quiz.id}
+                  onClick={() => navigate(`/quiz/${quiz.id}?mode=view`)}
+                  className="flex items-center gap-3 px-4 py-3.5 hover:bg-[#334155] cursor-pointer transition-colors border-b border-[#334155]/50 last:border-0"
+                >
+                  <div className="w-8 h-8 bg-indigo-500/15 rounded-lg flex items-center justify-center">
+                    <History className="w-4 h-4 text-indigo-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[#F8FAFC] truncate">{quiz.title}</p>
+                    <p className="text-xs text-[#64748B] truncate">{quiz.source} • {quiz.questionCount} ข้อ</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#64748B]" />
+                </div>
+              ))}
+              {searchResults.length > 5 && (
+                <div className="px-4 py-2 text-xs text-[#64748B] text-center border-t border-[#334155]/50">
+                  และอีก {searchResults.length - 5} รายการ — ดูทั้งหมดในประวัติ
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Hero */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center px-4 mb-8"
+      >
+        <h1 className="text-4xl sm:text-5xl font-extrabold text-[#F8FAFC] leading-tight mb-4 tracking-tight">
+          เปลี่ยน<span className="gradient-text">สไลด์เรียน</span>
+          <br />
+          เป็นข้อสอบใน{" "}
+          <span className="bg-indigo-500/15 text-indigo-400 px-3 py-1 rounded-xl">1 นาที</span>
+        </h1>
+        <p className="text-lg text-[#64748B] max-w-lg mx-auto">
+          ลากไฟล์สไลด์ลงมา แล้วให้ AI สร้างข้อสอบฝึกฝนให้คุณเลย
+        </p>
+      </motion.div>
+
+      <div className="flex-1 flex flex-col items-center px-4 pb-12">
+        {!configFile ? (
+          /* Dropzone */
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center max-w-3xl mx-auto"
+            transition={{ delay: 0.1 }}
+            className="w-full max-w-2xl"
           >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-genq-100 rounded-full text-genq-700 text-sm font-medium mb-6"
+            <div
+              {...getRootProps()}
+              className={`relative cursor-pointer rounded-3xl border-2 border-dashed p-16 sm:p-20 text-center transition-all duration-300 ${
+                isDragActive
+                  ? "border-indigo-500 bg-indigo-500/10 scale-[1.02]"
+                  : "border-[#334155] hover:border-indigo-500/50 hover:bg-[#1E293B]/50"
+              }`}
             >
-              <Sparkles className="w-4 h-4" />
-              <span>AI-Powered Active Learning</span>
-            </motion.div>
-
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6">
-              เปลี่ยนสไลด์
-              <br />
-              <span className="gradient-text">เป็นข้อสอบ Interactive</span>
-              <br />
-              ใน 1 นาที
-            </h1>
-
-            <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto mb-8 leading-relaxed">
-              แค่ลากไฟล์ PDF หรือ PowerPoint วางลงมา
-              <br className="hidden sm:block" />
-              AI จะสร้างข้อสอบพร้อมเฉลยให้คุณทันที — ไม่ต้องเสียเวลาอ่านซ้ำหลายรอบ
-            </p>
-
-            <div className="flex flex-wrap justify-center gap-6 sm:gap-10 mb-10">
-              {[
-                { icon: Clock, value: "1 นาที", label: "สร้างข้อสอบ" },
-                { icon: Brain, value: "80%", label: "อัตราจดจำ (Active Recall)" },
-                { icon: Target, value: "100 ข้อ", label: "สูงสุดต่อไฟล์" },
-              ].map((stat, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 + i * 0.1 }}
-                  className="flex items-center gap-2 text-gray-500"
-                >
-                  <stat.icon className="w-5 h-5 text-genq-500" />
-                  <span className="font-semibold text-gray-900">{stat.value}</span>
-                  <span className="text-sm">{stat.label}</span>
-                </motion.div>
-              ))}
+              <input {...getInputProps()} />
+              <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 transition-all duration-300 ${
+                isDragActive ? "bg-indigo-500/20 scale-110" : "bg-[#1E293B]"
+              }`}>
+                <Upload className={`w-10 h-10 transition-colors ${isDragActive ? "text-indigo-400" : "text-[#64748B]"}`} />
+              </div>
+              <p className="text-lg font-semibold text-[#F8FAFC] mb-2">
+                {isDragActive ? "ปล่อยไฟล์เลย!" : "ลากไฟล์มาวางที่นี่"}
+              </p>
+              <p className="text-sm text-[#64748B] mb-6">หรือกดเพื่อเลือกไฟล์</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                <span className="px-3 py-1 bg-[#1E293B] text-[#94A3B8] rounded-full text-xs border border-[#334155]">PDF</span>
+                <span className="px-3 py-1 bg-[#1E293B] text-[#94A3B8] rounded-full text-xs border border-[#334155]">PPTX</span>
+                <span className="px-3 py-1 bg-[#1E293B] text-[#94A3B8] rounded-full text-xs border border-[#334155]">DOCX</span>
+                <span className="px-3 py-1 bg-[#1E293B] text-[#94A3B8] rounded-full text-xs border border-[#334155]">TXT</span>
+                <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 rounded-full text-xs border border-indigo-500/30">สูงสุด 15MB</span>
+              </div>
             </div>
           </motion.div>
-
-          {/* Upload Zone / Config Panel / Uploading */}
+        ) : (
+          /* Config Panel */
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="max-w-2xl mx-auto"
+            className="w-full max-w-2xl"
           >
-            <AnimatePresence mode="wait">
-              {uploading ? (
-                <motion.div
-                  key="uploading"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="card text-center p-12"
-                >
-                  <div className="relative w-20 h-20 mx-auto mb-6">
-                    <div className="absolute inset-0 bg-genq-100 rounded-2xl" />
-                    <div className="relative flex items-center justify-center h-full">
-                      <Loader2 className="w-8 h-8 text-genq-600 animate-spin" />
-                    </div>
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-accent-400 rounded-full animate-pulse" />
-                  </div>
-                  <p className="text-lg font-semibold text-gray-800 mb-3">{processingStep}</p>
-                  <div className="w-full max-w-xs mx-auto bg-gray-100 rounded-full h-2 overflow-hidden">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-genq-500 to-accent-500 rounded-full"
-                      initial={{ width: "0%" }}
-                      animate={{ width: `${uploadProgress}%` }}
-                      transition={{ duration: 0.5 }}
-                    />
-                  </div>
-                  <p className="text-sm text-gray-400 mt-3">{uploadProgress}%</p>
-                </motion.div>
-              ) : configFile ? (
-                <motion.div
-                  key="config"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="card p-8"
-                >
-                  {/* File info */}
-                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-                    <div className="w-12 h-12 bg-genq-100 rounded-xl flex items-center justify-center shrink-0">
-                      <FileText className="w-6 h-6 text-genq-600" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-gray-800 truncate">{configFile.name}</p>
-                      <p className="text-sm text-gray-400">
-                        {(configFile.size / 1024 / 1024).toFixed(1)} MB
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Question type selectors */}
-                  <div className="mb-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Settings2 className="w-5 h-5 text-genq-600" />
-                      <h3 className="text-lg font-bold text-gray-800">เลือกประเภทข้อสอบ</h3>
-                    </div>
-
-                    <div className="space-y-3">
-                      {QUESTION_TYPES.map(({ key, label, color }) => (
-                        <div key={key} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${color}`}>
-                              {label}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <button
-                              onClick={() => adjustCount(key, -1)}
-                              disabled={questionCounts[key] === 0}
-                              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                                bg-white border border-gray-200 hover:bg-gray-100
-                                disabled:opacity-30 disabled:cursor-not-allowed"
-                            >
-                              <Minus className="w-4 h-4" />
-                            </button>
-                            <input type="number" min="0" max="30" value={questionCounts[key]}
-                              onChange={(e) => setCountValue(key, e.target.value)}
-                              onFocus={(e) => e.target.select()}
-                              className="w-14 text-center font-bold text-gray-800 tabular-nums bg-white border border-gray-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-genq-300 focus:border-genq-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                            <button
-                              onClick={() => adjustCount(key, 1)}
-                              disabled={totalQuestions >= maxTotal || questionCounts[key] >= 15}
-                              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                                bg-white border border-gray-200 hover:bg-gray-100
-                                disabled:opacity-30 disabled:cursor-not-allowed"
-                            >
-                              <Plus className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Total count */}
-                  <div className="flex items-center justify-between mb-2 p-3 bg-genq-50 rounded-xl">
-                    <span className="text-sm font-medium text-genq-700">รวมทั้งหมด</span>
-                    <span className={`font-bold tabular-nums ${totalQuestions === 0 ? "text-red-500" : totalQuestions === maxTotal ? "text-accent-500" : "text-genq-700"}`}>
-                      {totalQuestions} / {maxTotal}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-400 mb-6 text-center">
-                    💡 AI อาจสร้างได้น้อยกว่าที่กำหนดถ้าจำนวนข้อเยอะเกินไป
-                    <br />แนะนำไม่เกิน 25 ข้อต่อครั้งเพื่อคุณภาพที่ดีที่สุด
-                  </p>
-
-                  {/* Action buttons */}
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleCancel}
-                      className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-gray-600 font-medium
-                        hover:bg-gray-50 active:scale-[0.98] transition-all duration-150"
-                    >
-                      ✕ ยกเลิก
-                    </button>
-                    <button
-                      onClick={handleGenerate}
-                      disabled={totalQuestions < 1}
-                      className="flex-1 px-4 py-3 bg-genq-600 text-white font-bold rounded-xl
-                        hover:bg-genq-700 active:scale-[0.98] transition-all duration-150
-                        disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      🚀 สร้างข้อสอบ {totalQuestions} ข้อ
-                    </button>
-                  </div>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="dropzone"
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  {...getRootProps()}
-                  className={`
-                    relative cursor-pointer rounded-3xl border-2 border-dashed p-12 sm:p-16 text-center
-                    transition-all duration-300
-                    ${
-                      isDragActive || dragOver
-                        ? "border-genq-500 bg-genq-50 scale-[1.02] shadow-2xl shadow-genq-500/20"
-                        : "border-gray-300 hover:border-genq-400 hover:bg-gray-50/50 hover:shadow-xl"
-                    }
-                  `}
-                >
-                  <input {...getInputProps()} />
-
-                  <div className="flex flex-col items-center gap-4">
-                    <div className={`w-20 h-20 rounded-2xl flex items-center justify-center transition-all duration-300 ${
-                      isDragActive || dragOver
-                        ? "bg-genq-500 text-white scale-110 shadow-xl shadow-genq-500/30"
-                        : "bg-genq-100 text-genq-600"
-                    }`}>
-                      <Upload className="w-8 h-8" />
-                    </div>
-                    <div>
-                      <p className="text-xl font-bold text-gray-800 mb-1">
-                        {isDragActive ? "ปล่อยไฟล์ได้เลย!" : "ลากไฟล์มาวางที่นี่"}
-                      </p>
-                      <p className="text-gray-500 text-sm">หรือคลิกเพื่อเลือกไฟล์</p>
-                    </div>
-                    <div className="flex flex-wrap justify-center gap-2 text-xs text-gray-400">
-                      <span className="px-3 py-1 bg-gray-100 rounded-full">PDF</span>
-                      <span className="px-3 py-1 bg-gray-100 rounded-full">PPTX</span>
-                      <span className="px-3 py-1 bg-gray-100 rounded-full">DOCX</span>
-                      <span className="px-3 py-1 bg-gray-100 rounded-full">TXT</span>
-                      <span className="px-3 py-1 bg-gray-100 rounded-full">สูงสุด 15MB</span>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Error message */}
-            <AnimatePresence>
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm"
-                >
-                  ❌ {error}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section className="py-16 sm:py-20 bg-white/50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              วิธีใช้งาน <span className="gradient-text">ง่ายนิดเดียว</span>
-            </h2>
-            <p className="text-gray-500 text-lg">เพียง 3 ขั้นตอน ก็เปลี่ยนสไลดะของคุณเป็นข้อสอบ Interactive</p>
-          </motion.div>
-
-          <div className="grid sm:grid-cols-3 gap-8">
-            {[
-              { icon: Upload, step: "1", title: "ลาก & วางไฟล์", desc: "ลากไฟล์สไลด์เรียน PDF หรือ PPTX มาวางบนหน้าเว็บ", color: "from-genq-500 to-genq-600" },
-              { icon: Settings2, step: "2", title: "เลือกประเภทข้อสอบ", desc: "เลือกรูปแบบข้อสอบที่ต้องการ ทั้งเลือกตอบ ถูกผิด ตอบสั้น เติมคำ หรือจับคู่", color: "from-accent-500 to-accent-600" },
-              { icon: CheckCircle2, step: "3", title: "ทดสอบ & รู้ผลทันที", desc: "กดเลือกคำตอบ ดูเฉลยและคำอธิบาย รู้จุดอ่อนของตัวเองก่อนสอบ", color: "from-genq-600 to-genq-800" },
-            ].map((item, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.15 }}
-                className="card-hover text-center p-8"
-              >
-                <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${item.color} flex items-center justify-center mx-auto mb-5 shadow-lg`}>
-                  <item.icon className="w-7 h-7 text-white" />
+            <div className="card mb-4">
+              {/* File info */}
+              <div className="flex items-center gap-3 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl mb-6">
+                <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center">
+                  <FileCheck className="w-5 h-5 text-indigo-400" />
                 </div>
-                <div className="text-3xl font-black text-genq-200 mb-2">{item.step}</div>
-                <h3 className="text-lg font-bold mb-2">{item.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{item.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-[#F8FAFC] truncate">{configFile.name}</p>
+                  <p className="text-xs text-[#64748B]">{(configFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                </div>
+                <button onClick={() => { setConfigFile(null); setError(""); }}
+                  className="p-2 text-[#64748B] hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-      {/* Benefits */}
-      <section className="py-16 sm:py-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            className="grid md:grid-cols-2 gap-8 items-center"
-          >
-            <div>
-              <h2 className="text-3xl sm:text-4xl font-bold mb-6">
-                ทำไมต้อง <span className="gradient-text">GenQ</span>?
-              </h2>
-              <div className="space-y-4">
-                {[
-                  { icon: Zap, title: "ประหยัดเวลา 3-5 ชม. ต่อวิชา", desc: "ไม่ต้องเสียเวลาอ่านสไลด์ซ้ำหลายรอบ หรือนั่งทำข้อสอบเอง" },
-                  { icon: Brain, title: "Active Recall เพิ่มความจำ 80%", desc: "วิทยาศาสตร์พิสูจน์แล้วว่า การทำข้อสอบช่วยจำได้ดีกว่าอ่านอย่างเดียว" },
-                  { icon: Target, title: "รู้จุดอ่อนก่อนเข้าห้องสอบ", desc: "ระบบวิเคราะห์ว่าคุณพลาดตรงไหน พร้อมแนะนำให้กลับไปอ่านสไลด์หน้าไหน" },
-                  { icon: Clock, title: "ใช้ได้ทุกที่ ทุกเวลา 24/7", desc: "แค่มีอินเทอร์เน็ต ก็เปลี่ยนสไลด์เป็นข้อสอบได้ทันที" },
-                ].map((item, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, x: -20 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: i * 0.1 }}
-                    className="flex gap-4 p-4 rounded-xl hover:bg-genq-50 transition-colors"
-                  >
-                    <div className="w-12 h-12 bg-genq-100 rounded-xl flex items-center justify-center shrink-0">
-                      <item.icon className="w-6 h-6 text-genq-600" />
+              {/* Question type selectors */}
+              <h3 className="text-sm font-semibold text-[#F8FAFC] mb-4 flex items-center gap-2">
+                <Settings2 className="w-4 h-4 text-indigo-400" /> เลือกประเภทและจำนวนข้อสอบ
+              </h3>
+              <div className="space-y-2.5">
+                {QUESTION_TYPES.map(({ key, label, icon: Icon, color }) => (
+                  <div key={key} className="flex items-center justify-between bg-[#0F172A] rounded-xl px-4 py-2.5 border border-[#334155]/50">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${color} flex items-center justify-center`}>
+                        <Icon className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="text-sm font-medium text-[#F8FAFC]">{label}</span>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-800">{item.title}</h3>
-                      <p className="text-sm text-gray-500">{item.desc}</p>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => adjustCount(key, -1)}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[#64748B] hover:text-[#F8FAFC] hover:bg-[#334155] transition-all disabled:opacity-30"
+                        disabled={uploading}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <input
+                        type="number"
+                        value={questionCounts[key]}
+                        onChange={(e) => setCountDirect(key, e.target.value)}
+                        className="w-14 text-center font-bold text-[#F8FAFC] bg-[#1E293B] border border-[#334155] rounded-lg py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        min="0" max="15"
+                        disabled={uploading}
+                      />
+                      <button onClick={() => adjustCount(key, 1)}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[#64748B] hover:text-[#F8FAFC] hover:bg-[#334155] transition-all disabled:opacity-30"
+                        disabled={uploading}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
+
+              {/* Total */}
+              <div className="flex items-center justify-between mt-4 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+                <span className="text-sm text-[#94A3B8]">รวมทั้งหมด</span>
+                <span className="text-lg font-bold text-indigo-400">{totalAll} ข้อ</span>
+              </div>
             </div>
 
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              className="relative"
-            >
-              <div className="card p-8 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-genq-100 to-transparent rounded-bl-full" />
-                <div className="relative">
-                  <div className="flex items-center gap-2 mb-6">
-                    <div className="w-3 h-3 rounded-full bg-red-400" />
-                    <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                    <div className="w-3 h-3 rounded-full bg-green-400" />
-                    <span className="text-sm text-gray-400 ml-2">สไลด์เรียน — ระบบฐานข้อมูล</span>
-                  </div>
-                  <div className="space-y-3 mb-6">
-                    <div className="h-3 bg-gray-200 rounded-full w-full" />
-                    <div className="h-3 bg-gray-200 rounded-full w-3/4" />
-                    <div className="h-3 bg-gray-200 rounded-full w-5/6" />
-                    <div className="h-3 bg-gray-200 rounded-full w-2/3" />
-                    <div className="h-3 bg-gray-200 rounded-full w-4/5" />
-                  </div>
-                  <motion.div
-                    animate={{ y: [0, -5, 0] }}
-                    transition={{ repeat: Infinity, duration: 2 }}
-                    className="flex items-center justify-center"
-                  >
-                    <div className="bg-genq-500 text-white text-sm font-medium px-6 py-3 rounded-full shadow-xl shadow-genq-500/30 flex items-center gap-2">
-                      <Sparkles className="w-4 h-4" />
-                      <span>✨ GenQ กำลังสร้างข้อสอบ...</span>
-                    </div>
-                  </motion.div>
-                  <div className="mt-6 space-y-4">
-                    {["ข้อ 1", "ข้อ 2", "ข้อ 3"].map((q, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, x: 20 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: 0.3 + i * 0.1 }}
-                        className="p-3 bg-gray-50 rounded-xl border border-gray-100"
-                      >
-                        <div className="h-3 bg-gray-200 rounded w-24 mb-2" />
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="h-8 bg-white rounded-lg border border-gray-200" />
-                          <div className="h-8 bg-white rounded-lg border border-gray-200" />
-                          <div className="h-8 bg-white rounded-lg border border-gray-200" />
-                          <div className="h-8 bg-white rounded-lg border border-gray-200" />
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <motion.div
-                animate={{ y: [0, -8, 0] }}
-                transition={{ repeat: Infinity, duration: 3 }}
-                className="absolute -bottom-3 -right-3 bg-accent-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg"
+            {/* Action buttons */}
+            <div className="flex items-center gap-3">
+              <button onClick={handleGenerate} disabled={uploading || totalAll === 0}
+                className="btn-primary flex-1 flex items-center justify-center gap-2 text-lg py-4"
               >
-                ⚡ เร็วกว่าอ่านเอง 10 เท่า
-              </motion.div>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
+                {uploading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Wand2 className="w-5 h-5" />
+                )}
+                {uploading ? `กำลังสร้าง... ${uploadProgress}%` : "✨ สร้างข้อสอบ"}
+              </button>
+              <button onClick={() => { setConfigFile(null); setError(""); }}
+                className="p-4 bg-[#1E293B] border border-[#334155] rounded-xl text-[#64748B] hover:text-[#F8FAFC] hover:border-rose-500/30 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-      {/* CTA */}
-      <section className="py-16 bg-gradient-to-br from-genq-600 to-genq-800">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">พร้อมสอบแล้วหรือยัง? 🎯</h2>
-            <p className="text-genq-200 text-lg mb-8">
-              ไม่ต้องอ่านสไลด์ซ้ำหลายรอบอีกต่อไป
-              <br />แค่ลากวาง — แล้วเริ่มสอบได้เลย
-            </p>
-            <button
-              onClick={() => document.getElementById("upload-section")?.scrollIntoView({ behavior: "smooth" })}
-              className="px-8 py-4 bg-white text-genq-700 font-bold rounded-2xl hover:bg-genq-50 active:scale-[0.98] transition-all duration-200 shadow-2xl shadow-black/20 text-lg"
-            >
-              🚀 ลองใช้ฟรีตอนนี้
-            </button>
+            {/* Progress bar */}
+            {uploading && (
+              <div className="mt-3 bg-[#1E293B] rounded-full h-2 overflow-hidden border border-[#334155]/50">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-indigo-500 to-indigo-400 rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(uploadProgress, 100)}%` }}
+                  transition={{ duration: 0.3 }}
+                />
+              </div>
+            )}
           </motion.div>
-        </div>
-      </section>
+        )}
+
+        {/* Error */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mt-4 p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-rose-400 text-sm max-w-2xl w-full"
+            >
+              {error}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Features */}
+        {!configFile && !uploading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10 max-w-2xl w-full"
+          >
+            {[
+              { icon: Brain, title: "AI สร้างให้", desc: "วิเคราะห์เนื้อหาจากสไลด์ สร้างข้อสอบให้อัตโนมัติ", color: "from-indigo-400 to-indigo-500" },
+              { icon: BookOpen, title: "หลายประเภ��", desc: "เลือกตอบ, ถูก-ผิด, เติมคำ, จับคู่, ตอบสั้น", color: "from-emerald-400 to-emerald-500" },
+              { icon: Target, title: "ฝึกซ้ำได้", desc: "ทำซ้ำหลายรอบ เฉลยละเอียดทุกข้อ", color: "from-amber-400 to-amber-500" },
+            ].map(({ icon: Icon, title, desc, color }, i) => (
+              <div key={i} className="card text-center p-5">
+                <div className={`w-12 h-12 bg-gradient-to-br ${color} rounded-xl flex items-center justify-center mx-auto mb-3`}>
+                  <Icon className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-sm font-semibold text-[#F8FAFC] mb-1">{title}</h3>
+                <p className="text-xs text-[#64748B]">{desc}</p>
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </div>
     </div>
   );
 }
