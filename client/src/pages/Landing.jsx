@@ -16,8 +16,9 @@ import {
   Loader2,
   GraduationCap,
 } from "lucide-react";
-import { uploadFile, getSeedQuiz } from "../api/client";
+import { getSeedQuiz } from "../api/client";
 import { addToSessionHistory } from "../utils/history";
+import { setPendingFile } from "../utils/fileStore";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -31,7 +32,8 @@ export default function Landing() {
     (acceptedFiles) => {
       const file = acceptedFiles[0];
       if (!file) return;
-      navigate("/config", { state: { file } });
+      setPendingFile(file);
+      navigate("/config");
     },
     [navigate]
   );

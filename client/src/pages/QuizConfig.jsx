@@ -1,8 +1,9 @@
 import { useState, useCallback } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Upload, FileText, Brain, Sliders, Plus, Minus, ChevronRight } from "lucide-react";
 import { uploadFile } from "../api/client";
 import { addToSessionHistory } from "../utils/history";
+import { getPendingFile, getPendingFileName, clearPendingFile } from "../utils/fileStore";
 
 const QUESTION_TYPES = [
   { key: "multipleChoice", label: "เลือกตอบ", desc: "Multiple Choice 4 ตัวเลือก", icon: "A" },
@@ -14,8 +15,8 @@ const QUESTION_TYPES = [
 
 export default function QuizConfig() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const file = location.state?.file;
+  const [file, setFile] = useState(getPendingFile);
+  const [fileName] = useState(getPendingFileName);
   const [counts, setCounts] = useState({ multipleChoice: 3, trueFalse: 1, shortAnswer: 1 });
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
@@ -44,7 +45,8 @@ export default function QuizConfig() {
         if (n > 0) config[k] = n;
       }
       const result = await uploadFile(file, null, config);
-      addToSessionHistory({ id: result.quizId, title: result.title, questionCount: result.questionCount, source: file.name, createdAt: new Date().toISOString() });
+      clearPendingFile();
+      addToSessionHistory({ id: result.quizId, title: result.title, questionCount: result.questionCount, source: fileName || file?.name || "document", createdAt: new Date().toISOString() });
       navigate(`/quiz/${result.quizId}`, { replace: true });
     } catch (e) {
       setError(e.message || "เกิดข้อผิดพลาด กรุณาลองใหม่");
