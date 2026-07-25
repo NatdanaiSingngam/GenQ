@@ -31,10 +31,10 @@ async function generateQuizWithGemini(apiKey, text, filename) {
 - ภาษาไทยเท่านั้น
 
 เนื้อหา:
-${text.slice(0, 80000)}`;
+${text.slice(0, 3000)}`;
 
   const resp = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -356,7 +356,13 @@ app.post("/api/upload", async (c) => {
     let quizData;
 
     if (apiKey) {
-      quizData = await generateQuizWithGemini(apiKey, text, filename);
+      try {
+        quizData = await generateQuizWithGemini(apiKey, text, filename);
+      } catch (e) {
+        // Fallback to mock on any Gemini error (quota, invalid key, etc.)
+        console.error("Gemini fallback:", e.message.slice(0, 100));
+        quizData = generateMockQuiz(filename);
+      }
     } else {
       quizData = generateMockQuiz(filename);
     }
