@@ -21,10 +21,18 @@ function buildQuizPrompt(config, text) {
 
   const typeDesc = parts.length > 0 ? parts.join("\n") : "- แบบเลือกตอบ (Multiple Choice) 5 ข้อ";
 
+  const total = (config.multipleChoice || 0) + (config.trueFalse || 0) + (config.completion || 0) + (config.shortAnswer || 0) + (config.essay || 0);
+
+  // Freshness instruction: ask for different questions when re-uploading same content
+  const round = config._r || 0;
+  const freshnessNote = round > 0
+    ? `\n\n⚠️ IMPORTANT: This is round ${round} for this content. DO NOT repeat questions from previous rounds. Generate completely NEW and DIFFERENT questions. At most 5 out of ${total} questions may overlap with previous rounds.`
+    : "";
+
   return `สร้างข้อสอบหลากหลายประเภทจากเนื้อหาต่อไปนี้
 
 ประเภทข้อสอบที่ต้องการ:
-${typeDesc}
+${typeDesc}${freshnessNote}
 
 รูปแบบ JSON:
 {
@@ -669,6 +677,9 @@ app.post("/api/upload", async (c) => {
       const configStr = formData.get("config");
       if (configStr) config = JSON.parse(configStr);
     } catch {}
+    // Strip internal fields before counting
+    const { _r, ...cleanConfig } = config;
+    config = cleanConfig;
     const totalAsked = Object.values(config).reduce((s, v) => s + (parseInt(v) || 0), 0);
     if (totalAsked < 1) config = { multipleChoice: 5 };
 

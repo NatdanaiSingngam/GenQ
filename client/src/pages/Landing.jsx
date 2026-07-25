@@ -147,9 +147,15 @@ export default function Landing() {
     }, 800);
 
     try {
+      // Add round counter for question freshness (track per filename)
+      const fileKey = `genq_round_${configFile.name}`;
+      let round = parseInt(localStorage.getItem(fileKey) || "0", 10) + 1;
+      localStorage.setItem(fileKey, String(round));
+      const configWithRound = { ...questionCounts, _r: round };
+
       const data = await uploadFile(configFile, (pct) => {
         setUploadProgress(Math.round((pct.loaded / pct.total) * 20));
-      }, questionCounts);
+      }, configWithRound);
 
       clearInterval(stepTimer);
       setUploadProgress(100);
