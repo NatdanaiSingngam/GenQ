@@ -1,24 +1,23 @@
 # STATUS.md — GenQ Project
 
 ## Current Status
-✅ **MVP Complete + Cloudflare Deploy Ready**
+✅ **DEPLOYED ON CLOUDFLARE**
 
-## Active Blocker
-Requires Cloudflare KV namespace creation + secret config on Cloudflare Dashboard before deployment.
+## Live URLs
+- **Frontend (Pages):** https://genq-dlg.pages.dev
+- **Backend API (Worker):** https://genq-api.banana-by-monky.workers.dev
+- **GitHub:** https://github.com/NatdanaiSingngam/GenQ
 
-## Completed
-- [x] Express backend (MVP)
-- [x] React + Vite frontend (all pages)
-- [x] Cloudflare Worker backend (Hono.js)
-- [x] Cloudflare Pages frontend config
-- [x] GitHub push
+## Deployed Infrastructure
+- [x] Cloudflare Worker `genq-api` — handles all API endpoints
+- [x] Cloudflare Pages `genq` — serves React frontend (built with Vite)
+- [x] GEMINI_API_KEY set as Worker secret
+- [x] In-memory store for quiz data (works across same-isolate requests)
 
-## Verification
-- `npx wrangler deploy --dry-run` → 114.88 KiB (under 1MB Worker limit)
-- `GEMINI_API_KEY` in `.dev.vars` (local) / Cloudflare Secrets (prod)
-- KV with in-memory fallback for local development
-
-## Next Steps
-1. User creates KV namespace on Cloudflare
-2. User adds GEMINI_API_KEY secret via `npx wrangler secret put`
-3. Deploy Worker + Pages
+## API Verification
+- `GET /api/health` → ✅
+- `GET /api/quiz/seed/data` → ✅ 15 questions
+- `GET /api/quiz/:id` → ✅
+- `POST /api/quiz/:id/submit` → ✅ Score + Grade + Explanations
+- `POST /api/upload` → ✅ File upload + quiz generation (Mock mode)
+- CORS headers → ✅ `access-control-allow-origin: *`

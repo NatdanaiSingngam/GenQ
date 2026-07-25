@@ -115,32 +115,73 @@ function generateMockQuiz(filename) {
 }
 
 // ---------------------------------------------------------------------------
-// Global in-memory store (reliable for MVP, survives across same-isolate requests)
-// KV can be added later for persistence across deploys
+// Hybrid store: KV (persistent) with in-memory fallback
 // ---------------------------------------------------------------------------
-const store = new Map();
+const mem = new Map();
+const MEM_TTL = 7 * 86400; // 7 days in seconds
 
-function normKey(id) {
+function key(id) {
   return "q:" + id.replace(/^quiz:/, "");
 }
 
-async function saveQuiz(_env, quiz) {
+async function saveQuiz(env, quiz) {
   const cleanId = quiz.id.replace(/^quiz:/, "");
-  store.set(normKey(cleanId), JSON.stringify({ ...quiz, id: cleanId }));
+  const data = JSON.stringify({ ...quiz, id: cleanId });
+  mem.set(key(cleanId), data);
+  // Try KV – ignore failure (fallback to memory)
+  const kv = env.GENQ_KV;
+  if (kv) {
+    try { await kv.put(key(cleanId), data, { expirationTtl: MEM_TTL }); } catch {}
+  }
 }
 
-async function loadQuiz(_env, id) {
-  const raw = store.get(normKey(id));
-  return raw ? JSON.parse(raw) : null;
+async function loadQuiz(env, id) {
+  const k = key(id);
+  // Try memory first (fast)
+  const memRaw = mem.get(k);
+  if (memRaw !== undefined) return JSON.parse(memRaw);
+  // Fallback to KV
+  const kv = env.GENQ_KV;
+  if (kv) {
+    try {
+      const raw = await kv.get(k);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+  }
+  return null;
 }
 
-async function listQuizzes(_env) {
+async function listQuizzes(env) {
+  const seen = new Set();
   const quizzes = [];
-  for (const v of store.values()) {
+  // Collect from memory
+  for (const [k, v] of mem) {
     try {
       const d = JSON.parse(v);
+      seen.add(d.id);
       quizzes.push({ id: d.id, title: d.title, source: d.source, createdAt: d.createdAt, questionCount: d.questionCount });
-    } catch { /* skip */ }
+    } catch {}
+  }
+  // Also collect from KV (in case we missed any)
+  const kv = env.GENQ_KV;
+  if (kv) {
+    try {
+      const list = await kv.list();
+      const entries = list.keys || [];
+      for (const entry of entries) {
+        const name = typeof entry === "string" ? entry : entry.name;
+        const raw = await kv.get(name);
+        if (raw) {
+          try {
+            const d = JSON.parse(raw);
+            if (!seen.has(d.id)) {
+              quizzes.push({ id: d.id, title: d.title, source: d.source, createdAt: d.createdAt, questionCount: d.questionCount });
+              seen.add(d.id);
+            }
+          } catch {}
+        }
+      }
+    } catch {}
   }
   return quizzes;
 }
