@@ -56,7 +56,7 @@ export default function Landing() {
 
   const adjustCount = (key, delta) => {
     setQuestionCounts((prev) => {
-      const next = Math.max(0, Math.min(15, (prev[key] || 0) + delta));
+      const next = Math.max(0, Math.min(maxTotal, (prev[key] || 0) + delta));
       const newTotal = totalQuestions - (prev[key] || 0) + next;
       if (newTotal > maxTotal) return prev; // don't exceed max
       return { ...prev, [key]: next };
@@ -67,7 +67,7 @@ export default function Landing() {
     const val = parseInt(raw, 10);
     if (isNaN(val) || val < 0) return;
     setQuestionCounts((prev) => {
-      const clamped = Math.min(val, 15);
+      const clamped = Math.min(val, maxTotal);
       const newTotal = totalQuestions - (prev[key] || 0) + clamped;
       if (newTotal > maxTotal) {
         // Cap to max possible while staying ≤ maxTotal
@@ -323,13 +323,13 @@ export default function Landing() {
                             >
                               <Minus className="w-4 h-4" />
                             </button>
-                            <input type="number" min="0" max="30" value={questionCounts[key]}
+                            <input type="number" min="0" max={maxTotal} value={questionCounts[key]}
                               onChange={(e) => setCountValue(key, e.target.value)}
                               onFocus={(e) => e.target.select()}
                               className="w-14 text-center font-bold text-gray-800 tabular-nums bg-white border border-gray-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-genq-300 focus:border-genq-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                             <button
                               onClick={() => adjustCount(key, 1)}
-                              disabled={totalQuestions >= maxTotal || questionCounts[key] >= 15}
+                              disabled={totalQuestions >= maxTotal || questionCounts[key] >= maxTotal}
                               className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors
                                 bg-white border border-gray-200 hover:bg-gray-100
                                 disabled:opacity-30 disabled:cursor-not-allowed"
