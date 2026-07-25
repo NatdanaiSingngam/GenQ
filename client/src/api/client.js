@@ -1,7 +1,11 @@
 import axios from "axios";
 
+// On Cloudflare Workers: use VITE_API_URL env var
+// On local dev: proxy via Vite config
+const BASE_URL = import.meta.env.VITE_API_URL || "/api";
+
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: BASE_URL,
   timeout: 120000, // 2 min for AI processing
 });
 

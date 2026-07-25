@@ -2,9 +2,11 @@ node_modules/
 dist/
 build/
 .env
+.dev.vars
 *.log
 server/uploads/*
 !server/uploads/.gitkeep
 server/data/*.json
 !server/data/seed.json
 .DS_Store
+.wrangler

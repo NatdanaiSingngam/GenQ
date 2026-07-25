@@ -1,0 +1,19 @@
+name = "genq-api"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+
+# KV Namespace — Create with: npx wrangler kv:namespace create GENQ_KV
+# In local dev (wrangler dev), if no binding, KV methods will fail gracefully
+# In production, create the namespace and add the ID below.
+# Local preview KV can be used with:
+#   npx wrangler kv:namespace create GENQ_KV --preview
+# Then add the preview ID below.
+#
+# [[kv_namespaces]]
+#   binding = "GENQ_KV"
+#   id = "your-production-id"
+#   preview_id = "your-preview-id"
+
+# Environment variables
+[vars]
+GEMINI_API_KEY = ""

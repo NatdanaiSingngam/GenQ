@@ -1,0 +1,12 @@
+name = "genq"
+compatibility_date = "2024-09-23"
+
+# Cloudflare Pages — frontend only
+# Manual deploy: npx wrangler pages deploy dist --project-name=genq
+# Or connect GitHub repo in Cloudflare Dashboard
+
+[pages]
+  # Build configuration for Cloudflare Dashboard auto-deploy
+  # Build command: cd client && npm install && npm run build
+  # Build output: dist
+  # Root directory: client

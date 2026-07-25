@@ -120,20 +120,93 @@ genq/
 
 ## ☁️ Deploy
 
-### Deploy Backend (Render / Railway)
-1. Push โปรเจกต์ไป GitHub
-2. บน Render: New Web Service → เลือก repo
-3. Root Directory: `server`
-4. Build Command: `npm install`
-5. Start Command: `npm start`
-6. Set Environment Variable: `GEMINI_API_KEY` (optional)
+### Local Dev (Express — แบบเดิม)
 
-### Deploy Frontend (Vercel)
-1. บน Vercel: Import Project → เลือก repo
-2. Root Directory: `client`
-3. Framework: Vite
-4. Environment Variable: `VITE_API_URL=https://your-api.onrender.com`
-5. Deploy!
+```bash
+# Terminal 1: Backend
+cd server && npm run dev
+
+# Terminal 2: Frontend
+cd client && npm run dev
+```
+
+---
+
+## ☁️ Deploy (Cloudflare — Production)
+
+โปรเจกต์นี้ deploy บน **Cloudflare Workers (API) + Cloudflare Pages (Frontend)**
+
+### สิ่งที่ต้องเตรียม
+- Cloudflare Account
+- API Token (permissions: Workers, Pages, KV)
+- `GEMINI_API_KEY`
+
+---
+
+### 1. Create KV Namespace
+
+```bash
+cd server/worker
+npm install
+npx wrangler kv:namespace create GENQ_KV
+```
+→ คัดลอก `id` ที่ได้ไปใส่ใน `server/worker/wrangler.toml`:
+```toml
+[[kv_namespaces]]
+  binding = "GENQ_KV"
+  id = "your-id-here"
+```
+
+### 2. ตั้งค่า Secret (GEMINI_API_KEY)
+
+```bash
+npx wrangler secret put GEMINI_API_KEY
+# Paste: AQ.Ab8…u4Aw
+```
+
+### 3. Deploy Backend (Worker)
+
+```bash
+cd server/worker
+npx wrangler deploy
+```
+→ จะได้ URL ประมาณ `https://genq-api.your-username.workers.dev`
+
+### 4. Deploy Frontend (Pages)
+
+**วิธี A — ผ่าน CLI:**
+```bash
+cd client
+npm install
+npm run build
+npx wrangler pages deploy dist --project-name=genq --branch main
+```
+
+**วิธี B — ผ่าน Dashboard (auto-deploy จาก GitHub):**
+1. Cloudflare Dashboard → Workers & Pages → Create → Pages → Connect to Git
+2. เลือก repo `NatdanaiSingngam/GenQ`
+3. Build setting:
+   - Root directory: `client`
+   - Build command: `npm install && npm run build`
+   - Build output: `dist`
+4. Environment variable (Production):
+   - `VITE_API_URL` = `https://genq-api.your-username.workers.dev/api`
+
+### 5. ทดสอบ Local (Cloudflare Worker)
+
+```bash
+cd server/worker
+npm install
+# .dev.vars จะถูก ignore โดย git (มี GEMINI_API_KEY)
+npx wrangler dev
+# API อยู่ที่ http://localhost:8787
+```
+
+แล้วรัน Frontend:
+```bash
+cd client
+VITE_API_URL=http://localhost:8787/api npm run dev
+```
 
 ## 🔧 เทคโนโลยี
 
