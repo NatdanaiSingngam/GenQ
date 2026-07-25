@@ -116,17 +116,44 @@ const CONFIG_TO_TYPE = {
   essay: "essay",
 };
 
+const TYPE_TO_CONFIG = Object.fromEntries(
+  Object.entries(CONFIG_TO_TYPE).map(([k, v]) => [v, k])
+);
+
 function filterQuestionsByConfig(quizData, config) {
   if (!config || !quizData?.questions) return quizData;
-  // Build set of allowed types (only types with count > 0)
-  const allowedTypes = new Set();
+
+  // Build type -> count mapping from config
+  const requests = {};
+  let totalRequested = 0;
   for (const [key, type] of Object.entries(CONFIG_TO_TYPE)) {
-    if ((config[key] || 0) > 0) allowedTypes.add(type);
+    const count = parseInt(config[key]) || 0;
+    if (count > 0) {
+      requests[type] = count;
+      totalRequested += count;
+    }
   }
-  if (allowedTypes.size === 0) return quizData;
-  // Filter: keep only questions whose type is in allowedTypes
-  const filtered = quizData.questions.filter((q) => allowedTypes.has(q.type));
-  return { ...quizData, questions: filtered };
+  if (totalRequested === 0) return quizData;
+
+  // 1) Group AI questions by type, keeping only requested types
+  const byType = {};
+  for (const q of quizData.questions) {
+    const t = q.type || "multiple-choice";
+    if (requests[t]) {
+      if (!byType[t]) byType[t] = [];
+      byType[t].push(q);
+    }
+  }
+
+  // 2) Take at most the requested count per type (truncate excess)
+  const result = [];
+  for (const [type, requested] of Object.entries(requests)) {
+    const available = byType[type] || [];
+    result.push(...available.slice(0, requested));
+  }
+
+  // 3) Overall cap (in case total exceeds requested due to off-by-one)
+  return { ...quizData, questions: result.slice(0, totalRequested) };
 }
 
 async function generateQuizWithWorkersAI(env, text, filename, config) {
@@ -303,6 +330,123 @@ function generateMockQuiz(filename, config) {
   }
 
   return { title: `Quiz: ${filename}`, questions: result.slice(0, totalAsked) };
+}
+
+// Fill missing questions with mock-generated items to match requested count
+function fillQuizToRequestedCount(quizData, config, filename) {
+  if (!quizData?.questions || !config) return quizData;
+
+  const totalRequested = Object.entries(CONFIG_TO_TYPE).reduce(
+    (sum, [key]) => sum + (parseInt(config[key]) || 0), 0
+  );
+  if (totalRequested <= 0) return quizData;
+
+  const currentTotal = quizData.questions.length;
+  if (currentTotal >= totalRequested) return quizData; // already enough
+
+  // Build a hash-based seed for deterministic but varied mock questions per type
+  const hash = filename.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const subjects = [
+    {
+      name: "Database Systems",
+      questions: [
+        { question: "ข้อใดคือความหมายของ Database?", options: ["ชุดข้อมูลที่จัดเก็บอย่างมีโครงสร้างและสัมพันธ์กัน", "โปรแกรมจัดการเอกสาร", "ระบบปฏิบัติการ", "โปรแกรมคำนวณ"], correctIndex: 0, explanation: "Database คือชุดข้อมูลที่ถูกจัดเก็บอย่างมีระบบ มีความสัมพันธ์กัน สามารถเรียกใช้ได้อย่างมีประสิทธิภาพ" },
+        { question: "ข้อใดคือ DBMS?", options: ["MySQL", "Microsoft Word", "Google Chrome", "Photoshop"], correctIndex: 0, explanation: "MySQL เป็นระบบจัดการฐานข้อมูล (DBMS) ส่วนตัวเลือกอื่นเป็นโปรแกรมประเภทอื่น" },
+        { question: "Primary Key มีคุณสมบัติอะไร?", options: ["ห้ามมีค่า NULL และต้องไม่ซ้ำกัน", "ซ้ำกันได้", "เป็น NULL ได้", "แก้ไขค่าได้ตลอดเวลา"], correctIndex: 0, explanation: "Primary Key ต้องมีค่าไม่ซ้ำ (Unique) และไม่เป็น NULL เพื่อใช้ระบุแต่ละแถวในตาราง" },
+        { question: "Normalization มีจุดประสงค์อะไร?", options: ["ลดความซ้ำซ้อนของข้อมูล", "เพิ่มความเร็วในการ query", "เข้ารหัสข้อมูล", "บีบอัดขนาดฐานข้อมูล"], correctIndex: 0, explanation: "Normalization ช่วยลด Data Redundancy และลดปัญหาความไม่สอดคล้องของข้อมูล" },
+        { question: "Index มีประโยชน์อย่างไร?", options: ["เพิ่มความเร็วในการค้นหาข้อมูล", "ลดพื้นที่จัดเก็บ", "เพิ่มความปลอดภัย", "สำรองข้อมูลอัตโนมัติ"], correctIndex: 0, explanation: "Index ทำหน้าที่เหมือนสารบัญ ช่วยให้การค้นหาข้อมูลทำได้รวดเร็วขึ้น" },
+      ],
+    },
+    {
+      name: "Programming",
+      questions: [
+        { question: "ตัวแปรในภาษาโปรแกรมมิ่งคืออะไร?", options: ["ที่สำหรับเก็บข้อมูลในหน่วยความจำ", "คำสั่งที่ใช้ loop", "ฟังก์ชันทางคณิตศาสตร์", "อุปกรณ์ฮาร์ดแวร์"], correctIndex: 0, explanation: "ตัวแปร (Variable) คือชื่อที่ใช้อ้างอิงถึงตำแหน่งในหน่วยความจำที่ใช้เก็บข้อมูล" },
+        { question: "Array คืออะไร?", options: ["โครงสร้างข้อมูลที่เก็บค่าหลายค่าในตัวแปรเดียว", "ชนิดของ loop", "คำสั่ง condition", "ฟังก์ชัน built-in"], correctIndex: 0, explanation: "Array เป็นโครงสร้างข้อมูลที่เก็บชุดของค่าหลายค่าไว้ในตัวแปรเดียว โดยเข้าถึงผ่าน index" },
+        { question: "Time Complexity ของ Binary Search คือ?", options: ["O(log n)", "O(n)", "O(n²)", "O(1)"], correctIndex: 0, explanation: "Binary Search แบ่งครึ่งข้อมูลในทุก iteration จึงมี Time Complexity เป็น O(log n)" },
+        { question: "OOP ย่อมาจากอะไร?", options: ["Object-Oriented Programming", "Online Operating Protocol", "Order Of Processing", "Output-Oriented Program"], correctIndex: 0, explanation: "OOP หรือการเขียนโปรแกรมเชิงวัตถุ เป็นกระบวนทัศน์ที่ใช้ concept ของ object และ class" },
+        { question: "Polymorphism ใน OOP คืออะไร?", options: ["ความสามารถของ object ในการมีได้หลายรูปแบบ", "การสืบทอด class", "การซ่อนข้อมูล", "การเชื่อมต่อฐานข้อมูล"], correctIndex: 0, explanation: "Polymorphism หมายถึงความสามารถของ method หรือ object ที่สามารถทำงานได้หลายรูปแบบขึ้นอยู่กับบริบท" },
+      ],
+    },
+  ];
+  const subject = subjects[hash % subjects.length];
+  const baseQuestions = subject.questions;
+
+  // Count how many we have per type already
+  const have = {};
+  for (const q of quizData.questions) {
+    const t = q.type || "multiple-choice";
+    have[t] = (have[t] || 0) + 1;
+  }
+
+  const needed = {};
+  let totalNeeded = 0;
+  for (const [key, type] of Object.entries(CONFIG_TO_TYPE)) {
+    const requested = parseInt(config[key]) || 0;
+    const current = have[type] || 0;
+    if (current < requested) {
+      needed[type] = requested - current;
+      totalNeeded += needed[type];
+    }
+  }
+
+  if (totalNeeded === 0) return quizData;
+
+  const filler = [];
+  let idx = currentTotal; // continue from where AI stopped
+  for (const [type, count] of Object.entries(needed)) {
+    for (let i = 0; i < count; i++) {
+      const q = baseQuestions[idx % baseQuestions.length];
+      const id = `q${quizData.questions.length + filler.length + 1}`;
+
+      switch (type) {
+        case "multiple-choice":
+          filler.push({ ...q, id, type: "multiple-choice" });
+          break;
+        case "true-false":
+          filler.push({
+            id, type: "true-false",
+            question: `${q.question} — ข้อความนี้ถูกต้องหรือไม่?`,
+            options: ["ถูก", "ผิด"],
+            correctIndex: Math.random() > 0.5 ? 0 : 1,
+            explanation: q.explanation,
+          });
+          break;
+        case "completion":
+          filler.push({
+            id, type: "completion",
+            question: q.question.replace(/[ะาเแโใไ]/g, "___") || "ให้เติมคำที่ถูกต้องในช่องว่าง",
+            answer: q.options?.[0] || "คำตอบ",
+            acceptableAnswers: [q.options?.[0] || "คำตอบ"],
+            explanation: q.explanation,
+          });
+          break;
+        case "short-answer":
+          filler.push({
+            id, type: "short-answer",
+            question: `${q.question} (ตอบสั้นๆ)`,
+            answer: q.options?.[0] || "คำตอบ",
+            keywords: [(q.options?.[0] || "").substring(0, 5)],
+            explanation: q.explanation,
+          });
+          break;
+        case "matching":
+          filler.push({
+            id, type: "matching",
+            question: `จับคู่${subject.name}ต่อไปนี้ให้ถูกต้อง`,
+            pairs: [
+              { left: "แนวคิด A", right: "คำอธิบาย A" },
+              { left: "แนวคิด B", right: "คำอธิบาย B" },
+              { left: "แนวคิด C", right: "คำอธิบาย C" },
+            ],
+            explanation: "การจับคู่ที่ถูกต้องคือ A–A, B–B, C–C",
+          });
+          break;
+      }
+      idx++;
+    }
+  }
+
+  return { ...quizData, questions: [...quizData.questions, ...filler] };
 }
 
 // ---------------------------------------------------------------------------
@@ -753,6 +897,9 @@ app.post("/api/upload", async (c) => {
       console.error("All AI failed, using mock. Last error:", genError?.message.slice(0, 60));
       quizData = generateMockQuiz(filename, config);
     }
+
+    // Ensure exact question count requested (fill missing or truncate excess)
+    quizData = fillQuizToRequestedCount(quizData, config, filename);
 
     // Save to store
     const quizId = crypto.randomUUID();
