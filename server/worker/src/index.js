@@ -21,7 +21,7 @@ function buildQuizPrompt(config, text) {
 
   const typeDesc = parts.length > 0 ? parts.join("\n") : "- แบบเลือกตอบ (Multiple Choice) 5 ข้อ";
 
-  const total = (config.multipleChoice || 0) + (config.trueFalse || 0) + (config.completion || 0) + (config.shortAnswer || 0) + (config.essay || 0);
+  const total = (config.multipleChoice || 0) + (config.trueFalse || 0) + (config.completion || 0) + (config.shortAnswer || 0) + (config.matching || 0) + (config.essay || 0);
 
   // Freshness instruction: ask for different questions when re-uploading same content
   const round = config._r || 0;
@@ -106,6 +106,29 @@ function parseAIResponse(rawText, filename) {
   };
 }
 
+// Map config fields to question types in AI response
+const CONFIG_TO_TYPE = {
+  multipleChoice: "multiple-choice",
+  trueFalse: "true-false",
+  completion: "completion",
+  matching: "matching",
+  shortAnswer: "short-answer",
+  essay: "essay",
+};
+
+function filterQuestionsByConfig(quizData, config) {
+  if (!config || !quizData?.questions) return quizData;
+  // Build set of allowed types (only types with count > 0)
+  const allowedTypes = new Set();
+  for (const [key, type] of Object.entries(CONFIG_TO_TYPE)) {
+    if ((config[key] || 0) > 0) allowedTypes.add(type);
+  }
+  if (allowedTypes.size === 0) return quizData;
+  // Filter: keep only questions whose type is in allowedTypes
+  const filtered = quizData.questions.filter((q) => allowedTypes.has(q.type));
+  return { ...quizData, questions: filtered };
+}
+
 async function generateQuizWithWorkersAI(env, text, filename, config) {
   const ai = env.AI;
   if (!ai) throw new Error("AI binding not available");
@@ -124,7 +147,8 @@ async function generateQuizWithWorkersAI(env, text, filename, config) {
   const rawText = response?.choices?.[0]?.message?.content || response?.response || "";
   if (!rawText) throw new Error("Empty AI response");
 
-  return parseAIResponse(rawText, filename);
+  const quizData = parseAIResponse(rawText, filename);
+  return filterQuestionsByConfig(quizData, config);
 }
 
 async function generateQuizWithGemini(apiKey, text, filename, config) {
@@ -150,7 +174,8 @@ async function generateQuizWithGemini(apiKey, text, filename, config) {
   const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
   if (!rawText) throw new Error("Empty Gemini response");
 
-  return parseAIResponse(rawText, filename);
+  const quizData = parseAIResponse(rawText, filename);
+  return filterQuestionsByConfig(quizData, config);
 }
 
 // ---------------------------------------------------------------------------
@@ -195,7 +220,7 @@ function generateMockQuiz(filename, config) {
   const baseQuestions = subject.questions.map((q, i) => ({ ...q, id: `q${i + 1}`, type: "multiple-choice" }));
 
   // If config says true-false, convert some
-  const totalAsked = (config?.multipleChoice || 0) + (config?.trueFalse || 0) + (config?.completion || 0) + (config?.shortAnswer || 0) + (config?.essay || 0);
+  const totalAsked = (config?.multipleChoice || 0) + (config?.trueFalse || 0) + (config?.completion || 0) + (config?.matching || 0) + (config?.shortAnswer || 0) + (config?.essay || 0);
   if (totalAsked < 1) {
     return { title: `Quiz: ${filename}`, questions: baseQuestions.slice(0, 5) };
   }
@@ -261,6 +286,19 @@ function generateMockQuiz(filename, config) {
       question: `อธิบายเกี่ยวกับ ${subject.name} และประยุกต์ใช้ในชีวิตจริง พร้อมยกตัวอย่างประกอบ`,
       guidelines: ["อธิบายแนวคิดหลัก", "ยกตัวอย่างประกอบ", "อธิบายการประยุกต์ใช้"],
       explanation: "คำตอบควรครอบคลุมแนวคิดหลัก พร้อมตัวอย่างและประยุกต์ใช้",
+    });
+  }
+
+  // Matching (generate pairs from base questions)
+  for (let i = 0; i < (config?.matching || 0); i++) {
+    const leftItems = ["แนวคิด A", "แนวคิด B", "แนวคิด C", "แนวคิด D"];
+    const rightItems = ["คำอธิบาย A", "คำอธิบาย B", "คำอธิบาย C", "คำอธิบาย D"];
+    result.push({
+      id: `q${result.length + 1}`,
+      type: "matching",
+      question: `จับคู่${subject.name}ต่อไปนี้ให้ถูกต้อง`,
+      pairs: leftItems.map((l, idx) => ({ left: l, right: rightItems[idx] })),
+      explanation: "การจับคู่ที่ถูกต้องคือ A–A, B–B, C–C, D–D",
     });
   }
 

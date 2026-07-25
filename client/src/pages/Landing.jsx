@@ -29,12 +29,11 @@ const QUESTION_TYPES = [
   { key: "shortAnswer", label: "ตอบสั้น", color: "bg-amber-100 text-amber-700" },
   { key: "completion", label: "เติมคำ", color: "bg-purple-100 text-purple-700" },
   { key: "matching", label: "จับคู่", color: "bg-pink-100 text-pink-700" },
-  { key: "essay", label: "เรียงความ", color: "bg-rose-100 text-rose-700" },
 ];
 
 const TYPE_LABELS = {
   multipleChoice: "เลือกตอบ", trueFalse: "ถูก-ผิด", shortAnswer: "ตอบสั้น",
-  completion: "เติมคำ", matching: "จับคู่", essay: "เรียงความ",
+  completion: "เติมคำ", matching: "จับคู่",
 };
 
 export default function Landing() {
@@ -49,7 +48,7 @@ export default function Landing() {
   const [configFile, setConfigFile] = useState(null);
   const [questionCounts, setQuestionCounts] = useState({
     multipleChoice: 3, trueFalse: 1, shortAnswer: 1,
-    completion: 0, matching: 0, essay: 0,
+    completion: 0, matching: 0,
   });
 
   const totalQuestions = Object.values(questionCounts).reduce((a, b) => a + b, 0);
@@ -96,7 +95,7 @@ export default function Landing() {
       // Reset counts to defaults
       setQuestionCounts({
         multipleChoice: 3, trueFalse: 1, shortAnswer: 1,
-        completion: 0, matching: 0, essay: 0,
+        completion: 0, matching: 0,
       });
     },
     []
@@ -454,7 +453,7 @@ export default function Landing() {
           <div className="grid sm:grid-cols-3 gap-8">
             {[
               { icon: Upload, step: "1", title: "ลาก & วางไฟล์", desc: "ลากไฟล์สไลด์เรียน PDF หรือ PPTX มาวางบนหน้าเว็บ", color: "from-genq-500 to-genq-600" },
-              { icon: Settings2, step: "2", title: "เลือกประเภทข้อสอบ", desc: "เลือกรูปแบบข้อสอบที่ต้องการ ทั้งเลือกตอบ ถูกผิด ตอบสั้น เติมคำ จับคู่ หรือเรียงความ", color: "from-accent-500 to-accent-600" },
+              { icon: Settings2, step: "2", title: "เลือกประเภทข้อสอบ", desc: "เลือกรูปแบบข้อสอบที่ต้องการ ทั้งเลือกตอบ ถูกผิด ตอบสั้น เติมคำ หรือจับคู่", color: "from-accent-500 to-accent-600" },
               { icon: CheckCircle2, step: "3", title: "ทดสอบ & รู้ผลทันที", desc: "กดเลือกคำตอบ ดูเฉลยและคำอธิบาย รู้จุดอ่อนของตัวเองก่อนสอบ", color: "from-genq-600 to-genq-800" },
             ].map((item, i) => (
               <motion.div
