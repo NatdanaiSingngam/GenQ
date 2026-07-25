@@ -7,28 +7,21 @@ import { SEED_DATA } from "./seed.js";
 // ---------------------------------------------------------------------------
 
 // Shared prompt template
-const QUIZ_PROMPT = `คุณคือผู้ช่วยสร้างข้อสอบจากเนื้อหาเอกสาร จงสร้างข้อสอบแบบ multiple-choice จำนวน 10 ข้อ จากเนื้อหาต่อไปนี้
+const QUIZ_PROMPT = `สร้างข้อสอบแบบ multiple-choice 5 ข้อจากเนื้อหาต่อไปนี้
 
-รูปแบบผลลัพธ์: ให้ตอบเป็น JSON เท่านั้น ไม่ต้องมีข้อความอื่นใดนอก JSON
-
+รูปแบบ: JSON เท่านั้น
 {
-  "title": "ชื่อข้อสอบที่สื่อถึงเนื้อหา",
+  "title": "ชื่อข้อสอบ",
   "questions": [
     {
-      "question": "คำถาม?",
-      "options": ["ตัวเลือก ก", "ตัวเลือก ข", "ตัวเลือก ค", "ตัวเลือก ง"],
+      "question": "คำถาม",
+      "options": ["ก", "ข", "ค", "ง"],
       "correctIndex": 0,
-      "explanation": "คำอธิบายว่าทำไมข้อนี้ถึงถูก อ้างอิงจากเนื้อหา"
+      "explanation": "คำอธิบาย"
     }
   ]
 }
-
-เงื่อนไข:
-- 10 ข้อเท่านั้น
-- ตัวเลือก 4 ตัวเลือกต่อข้อ
-- correctIndex คือ index ที่ถูกต้อง (0-3)
-- explanation ต้องอ้างอิงจากเนื้อหาจริง
-- ภาษาไทยเท่านั้น
+ภาษาไทยเท่านั้น
 
 เนื้อหา:`;
 
@@ -51,16 +44,16 @@ async function generateQuizWithWorkersAI(env, text, filename) {
   const ai = env.AI;
   if (!ai) throw new Error("AI binding not available");
 
-  const response = await ai.run("@cf/meta/llama-3.1-8b-instruct-fp8", {
+  const response = await ai.run("@cf/meta/llama-3.2-3b-instruct", {
     messages: [
       { role: "system", content: "You are a quiz generator. Always respond with valid JSON only." },
-      { role: "user", content: `${QUIZ_PROMPT}\n\n${text.slice(0, 2000)}` },
+      { role: "user", content: `${QUIZ_PROMPT}\n\n${text.slice(0, 1500)}` },
     ],
-    max_tokens: 4096,
+    max_tokens: 2048,
     temperature: 0.7,
   });
 
-  const rawText = response?.response || response?.data?.response || "";
+  const rawText = response?.choices?.[0]?.message?.content || response?.response || "";
   if (!rawText) throw new Error("Empty AI response");
 
   return parseAIResponse(rawText, filename);
