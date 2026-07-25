@@ -53,11 +53,11 @@ export default function Landing() {
   });
 
   const totalQuestions = Object.values(questionCounts).reduce((a, b) => a + b, 0);
-  const maxTotal = 100;
+  const maxTotal = 40;
 
   const adjustCount = (key, delta) => {
     setQuestionCounts((prev) => {
-      const next = Math.max(0, Math.min(30, (prev[key] || 0) + delta));
+      const next = Math.max(0, Math.min(15, (prev[key] || 0) + delta));
       const newTotal = totalQuestions - (prev[key] || 0) + next;
       if (newTotal > maxTotal) return prev; // don't exceed max
       return { ...prev, [key]: next };
@@ -68,7 +68,7 @@ export default function Landing() {
     const val = parseInt(raw, 10);
     if (isNaN(val) || val < 0) return;
     setQuestionCounts((prev) => {
-      const clamped = Math.min(val, 30);
+      const clamped = Math.min(val, 15);
       const newTotal = totalQuestions - (prev[key] || 0) + clamped;
       if (newTotal > maxTotal) {
         // Cap to max possible while staying ≤ maxTotal
@@ -324,7 +324,7 @@ export default function Landing() {
                               className="w-14 text-center font-bold text-gray-800 tabular-nums bg-white border border-gray-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-genq-300 focus:border-genq-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                             <button
                               onClick={() => adjustCount(key, 1)}
-                              disabled={totalQuestions >= maxTotal || questionCounts[key] >= 30}
+                              disabled={totalQuestions >= maxTotal || questionCounts[key] >= 15}
                               className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors
                                 bg-white border border-gray-200 hover:bg-gray-100
                                 disabled:opacity-30 disabled:cursor-not-allowed"
@@ -338,12 +338,16 @@ export default function Landing() {
                   </div>
 
                   {/* Total count */}
-                  <div className="flex items-center justify-between mb-6 p-3 bg-genq-50 rounded-xl">
+                  <div className="flex items-center justify-between mb-2 p-3 bg-genq-50 rounded-xl">
                     <span className="text-sm font-medium text-genq-700">รวมทั้งหมด</span>
                     <span className={`font-bold tabular-nums ${totalQuestions === 0 ? "text-red-500" : totalQuestions === maxTotal ? "text-accent-500" : "text-genq-700"}`}>
                       {totalQuestions} / {maxTotal}
                     </span>
                   </div>
+                  <p className="text-xs text-gray-400 mb-6 text-center">
+                    💡 AI อาจสร้างได้น้อยกว่าที่กำหนดถ้าจำนวนข้อเยอะเกินไป
+                    <br />แนะนำไม่เกิน 25 ข้อต่อครั้งเพื่อคุณภาพที่ดีที่สุด
+                  </p>
 
                   {/* Action buttons */}
                   <div className="flex gap-3">
