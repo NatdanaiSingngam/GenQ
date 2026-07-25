@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lightbulb,
   Send, RotateCcw, FileText, HelpCircle, AlignLeft, SplitSquareHorizontal,
-  Type, Eye, Edit3, Clock, Printer, Award,
+  Type, Eye, Edit3,
 } from "lucide-react";
 import { getQuiz, submitAnswers } from "../api/client";
 import LoadingPage from "../components/LoadingPage";
@@ -18,256 +18,378 @@ const TYPE_ICONS = {
   matching: SplitSquareHorizontal,
   essay: FileText,
 };
+
 const TYPE_LABELS = {
-  "multiple-choice": "เลือกตอบ", "true-false": "ถูก-ผิด", completion: "เติมคำ",
-  "short-answer": "ตอบสั้น", matching: "จับคู่", essay: "เขียนตอบ",
+  "multiple-choice": "เลือกตอบ",
+  "true-false": "ถูก-ผิด",
+  completion: "เติมคำ",
+  "short-answer": "ตอบสั้น",
+  matching: "จับคู่",
+  essay: "เขียนตอบ",
 };
 
-// ── Instant reveal: shows answer + explanation after selection ──
-function InstantReveal({ question, userAnswer }) {
+// ────────────── View Mode Renderer (toggle to show answers) ──────────────
+function ViewRenderer({ question, showAnswer }) {
   const type = question.type || "multiple-choice";
-  const isCorrect = question.correctIndex === userAnswer;
-  const correctText = question.options?.[question.correctIndex];
-  const answerText = question.answer || question.acceptableAnswers?.[0];
+  const expText = question.explanation;
 
+  if (!showAnswer) {
+    // Show options/input without highlighting answers
+    return (
+      <div className="space-y-2">
+        {question.options ? (
+          question.options.map((opt, idx) => (
+            <div key={idx} className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50">
+              <span className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 bg-gray-200 text-gray-500">
+                {String.fromCharCode(65 + idx)}
+              </span>
+              <span className="flex-1 pt-1">{opt}</span>
+            </div>
+          ))
+        ) : (type === "completion" || type === "short-answer") ? (
+          <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 text-gray-400 text-sm italic">
+            (พิมพ์คำตอบที่นี่)
+          </div>
+        ) : type === "matching" ? (
+          <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 text-gray-400 text-sm italic">
+            (จับคู่โดยเลือกรายการทางขวา)
+          </div>
+        ) : null}
+        <p className="text-xs text-gray-400 mt-2">กด "ดูเฉลย" เพื่อดูคำตอบที่ถูกต้อง</p>
+      </div>
+    );
+  }
+
+  // ── Show answers ──
+  const AnswerBadge = () => (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-accent-100 text-accent-700 rounded-full">
+      <CheckCircle2 className="w-3 h-3" /> เฉลย
+    </span>
+  );
+
+  switch (type) {
+    case "multiple-choice":
+    case "true-false":
+      return (
+        <div className="space-y-2">
+          {question.options.map((opt, idx) => {
+            const isCorrect = idx === question.correctIndex;
+            return (
+              <div
+                key={idx}
+                className={`flex items-start gap-3 p-3 rounded-xl border ${
+                  isCorrect ? "border-accent-300 bg-accent-50" : "border-gray-100 bg-gray-50"
+                }`}
+              >
+                <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 ${
+                  isCorrect ? "bg-accent-500 text-white" : "bg-gray-200 text-gray-500"
+                }`}>
+                  {String.fromCharCode(65 + idx)}
+                </span>
+                <span className="flex-1 pt-1">{opt}</span>
+                {isCorrect && <CheckCircle2 className="w-5 h-5 text-accent-500 shrink-0 mt-1" />}
+              </div>
+            );
+          })}
+          {expText && <ExplanationBox text={expText} />}
+        </div>
+      );
+
+    case "completion":
+    case "short-answer":
+      return (
+        <div className="p-4 rounded-xl bg-accent-50 border border-accent-200">
+          <p className="text-sm font-medium text-gray-500 mb-1">
+            <AnswerBadge /> คำตอบที่ถูกต้อง:
+          </p>
+          <p className="text-lg font-semibold text-genq-700">
+            {question.answer || question.acceptableAnswers?.[0] || "-"}
+          </p>
+          {question.acceptableAnswers?.length > 1 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {question.acceptableAnswers.map((a, i) => (
+                <span key={i} className="px-2 py-0.5 bg-accent-100 text-accent-700 rounded-full text-xs">{a}</span>
+              ))}
+            </div>
+          )}
+          {question.keywords?.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {question.keywords.map((kw, i) => (
+                <span key={i} className="px-2 py-0.5 bg-genq-100 text-genq-700 rounded-full text-xs">คีย์: {kw}</span>
+              ))}
+            </div>
+          )}
+          {expText && <div className="mt-3"><ExplanationBox text={expText} /></div>}
+        </div>
+      );
+
+    case "matching":
+      const leftCol = question.leftColumn || [];
+      const rightCol = question.rightColumn || [];
+      const pairs = question.pairs || [];
+      return (
+        <div className="space-y-3">
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
+            {leftCol.map((item, idx) => {
+              const matched = pairs.find((p) => p.left === item.text);
+              return (
+                <div key={idx} className="contents">
+                  <div className="p-3 bg-genq-50 border border-genq-200 rounded-xl text-center font-medium text-genq-800">
+                    {item.text}
+                  </div>
+                  <div className="flex items-center justify-center text-accent-400 font-bold">→</div>
+                  <div className="p-3 bg-accent-50 border border-accent-200 rounded-xl text-center font-medium text-accent-700">
+                    {matched?.right || rightCol[idx]?.text || "-"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {expText && <ExplanationBox text={expText} />}
+        </div>
+      );
+
+    case "essay":
+      return (
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
+          <p className="text-sm text-amber-700">
+            📝 ข้อสอบเขียนตอบ — ให้ตรวจสอบด้วยตัวเอง
+          </p>
+          {question.guidelines?.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {question.guidelines.map((g, i) => (
+                <li key={i} className="text-sm text-amber-600">• {g}</li>
+              ))}
+            </ul>
+          )}
+          {expText && <div className="mt-3"><ExplanationBox text={expText} /></div>}
+        </div>
+      );
+
+    default:
+      return <p className="text-gray-500">ไม่รองรับประเภทข้อสอบนี้</p>;
+  }
+}
+
+// ────────────── Take Mode Renderer (interactive) ──────────────
+function QuestionRenderer({ question, answers, onAnswer, submitted, explanation }) {
+  const qId = question.id;
+  const userAnswer = answers[qId];
+  const type = question.type || "multiple-choice";
+
+  const setAnswer = (val) => onAnswer(qId, val);
+
+  const isCorrect = explanation?.isCorrect;
+  const correctAnswer = explanation?.correctIndex;
+  const expText = explanation?.explanation;
+
+  switch (type) {
+    case "multiple-choice":
+    case "true-false":
+      return (
+        <div className="space-y-3">
+          {question.options.map((opt, idx) => {
+            let btnClass = "option-btn";
+            if (submitted) {
+              if (idx === correctAnswer) btnClass += " option-btn-correct";
+              else if (idx === userAnswer && !isCorrect) btnClass += " option-btn-wrong";
+            } else if (userAnswer === idx) {
+              btnClass += " option-btn-selected";
+            }
+
+            return (
+              <motion.button
+                key={idx}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.05 }}
+                onClick={() => setAnswer(idx)}
+                className={btnClass}
+                disabled={submitted}
+              >
+                <div className="flex items-start gap-3">
+                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 ${
+                    submitted && idx === correctAnswer ? "bg-accent-500 text-white"
+                    : submitted && idx === userAnswer && !isCorrect ? "bg-red-500 text-white"
+                    : userAnswer === idx ? "bg-genq-500 text-white"
+                    : "bg-gray-100 text-gray-500"
+                  }`}>
+                    {String.fromCharCode(65 + idx)}
+                  </span>
+                  <span className="flex-1 pt-1 text-left">{opt}</span>
+                  {submitted && idx === correctAnswer && <CheckCircle2 className="w-5 h-5 text-accent-500 shrink-0 mt-1" />}
+                  {submitted && idx === userAnswer && !isCorrect && <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-1" />}
+                </div>
+              </motion.button>
+            );
+          })}
+          {submitted && expText && <ExplanationBox text={expText} />}
+        </div>
+      );
+
+    case "completion":
+    case "short-answer":
+      return (
+        <div className="space-y-4">
+          <div className="relative">
+            {type === "completion" ? (
+              <input
+                type="text"
+                value={userAnswer || ""}
+                onChange={(e) => setAnswer(e.target.value)}
+                placeholder="พิมพ์คำตอบที่นี่..."
+                disabled={submitted}
+                className="w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:border-genq-400 focus:ring-2 focus:ring-genq-100 outline-none transition-all disabled:bg-gray-50"
+              />
+            ) : (
+              <textarea
+                value={userAnswer || ""}
+                onChange={(e) => setAnswer(e.target.value)}
+                placeholder="พิมพ์คำตอบสั้นๆ..."
+                rows={2}
+                disabled={submitted}
+                className="w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:border-genq-400 focus:ring-2 focus:ring-genq-100 outline-none transition-all resize-none disabled:bg-gray-50"
+              />
+            )}
+          </div>
+          {submitted && (
+            <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+              <p className="text-sm font-medium text-gray-500 mb-1">
+                {type === "completion" ? "คำตอบที่ถูกต้อง:" : "คำตอบที่ถูกต้อง:"}
+              </p>
+              <p className="text-lg font-semibold text-genq-700">
+                {explanation?.answer || explanation?.acceptableAnswers?.[0] || "-"}
+              </p>
+              {explanation?.keywords && explanation.keywords.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {explanation.keywords.map((kw, i) => (
+                    <span key={i} className="px-2 py-0.5 bg-genq-100 text-genq-700 rounded-full text-xs">
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {expText && <ExplanationBox text={expText} />}
+            </div>
+          )}
+        </div>
+      );
+
+    case "matching":
+      const leftCol = question.leftColumn || [];
+      const rightCol = question.rightColumn || [];
+      const pairMap = userAnswer || {};
+      return (
+        <div className="space-y-4">
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
+            {leftCol.map((item, idx) => (
+              <div key={item.id} className="contents">
+                <div className="p-3 bg-genq-50 border border-genq-200 rounded-xl text-center font-medium text-genq-800">
+                  {item.text}
+                </div>
+                <div className="flex items-center justify-center text-gray-300 text-lg">—</div>
+                <select
+                  value={pairMap[item.id] || ""}
+                  onChange={(e) => setAnswer({ ...pairMap, [item.id]: e.target.value })}
+                  disabled={submitted}
+                  className="p-3 border-2 border-gray-200 rounded-xl bg-white focus:border-genq-400 outline-none transition-all disabled:bg-gray-50"
+                >
+                  <option value="">— เลือก —</option>
+                  {rightCol.map((r) => (
+                    <option key={r.id} value={r.text}>{r.text}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+          {submitted && (
+            <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+              <p className="text-sm font-medium text-gray-500 mb-2">คำตอบที่ถูกต้อง:</p>
+              {explanation?.pairs?.map((p, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm mb-1">
+                  <span className="font-medium text-genq-700">{p.left}</span>
+                  <span className="text-gray-300">→</span>
+                  <span className="text-genq-600">{p.right}</span>
+                </div>
+              ))}
+              {expText && <ExplanationBox text={expText} />}
+            </div>
+          )}
+        </div>
+      );
+
+    case "essay":
+      return (
+        <div className="space-y-4">
+          {question.guidelines?.length > 0 && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <p className="text-sm font-medium text-amber-700 mb-2">📋 แนวทางการตอบ:</p>
+              <ul className="space-y-1">
+                {question.guidelines.map((g, i) => (
+                  <li key={i} className="text-sm text-amber-600 flex items-start gap-2">
+                    <span className="mt-1">•</span>
+                    {g}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <textarea
+            value={userAnswer || ""}
+            onChange={(e) => setAnswer(e.target.value)}
+            placeholder="พิมพ์คำตอบของคุณที่นี่..."
+            rows={6}
+            disabled={submitted}
+            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-genq-400 focus:ring-2 focus:ring-genq-100 outline-none transition-all resize-y disabled:bg-gray-50"
+          />
+          {!submitted && <p className="text-xs text-gray-400">ตอบอย่างน้อย 20 ตัวอักษร</p>}
+          {submitted && expText && <ExplanationBox text={expText} />}
+        </div>
+      );
+
+    default:
+      return <p className="text-gray-500">ไม่รองรับประเภทข้อสอบนี้</p>;
+  }
+}
+
+function ExplanationBox({ text }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mt-4 p-4 rounded-2xl border overflow-hidden"
+      className="mt-4 p-4 bg-genq-50 border border-genq-200 rounded-xl"
     >
-      {/* Result badge */}
-      <div className={`flex items-center gap-2 mb-3 ${isCorrect ? "text-emerald-400" : "text-rose-400"}`}>
-        {isCorrect ? (
-          <><CheckCircle2 className="w-5 h-5" /><span className="font-semibold">ถูกต้อง!</span></>
-        ) : (
-          <><XCircle className="w-5 h-5" /><span className="font-semibold">ผิด</span></>
-        )}
+      <div className="flex gap-3">
+        <Lightbulb className="w-5 h-5 text-genq-500 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-xs font-semibold text-genq-600 mb-0.5 uppercase tracking-wider">คำอธิบาย</p>
+          <p className="text-sm text-genq-800 leading-relaxed">{text}</p>
+        </div>
       </div>
-
-      {/* Show correct answer */}
-      {(type === "multiple-choice" || type === "true-false") && (
-        <p className="text-sm text-[#94A3B8] mb-3">
-          <span className="text-[#F8FAFC] font-medium">เฉลย: </span>
-          {question.correctIndex !== undefined ? String.fromCharCode(65 + question.correctIndex) + ". " + correctText : "-"}
-        </p>
-      )}
-      {(type === "completion" || type === "short-answer") && (
-        <p className="text-sm text-[#94A3B8] mb-3">
-          <span className="text-[#F8FAFC] font-medium">คำตอบ: </span>
-          {answerText || "-"}
-        </p>
-      )}
-      {type === "matching" && question.pairs && (
-        <div className="text-sm text-[#94A3B8] mb-3 space-y-1">
-          <p className="text-[#F8FAFC] font-medium mb-1">การจับคู่ที่ถูกต้อง:</p>
-          {question.pairs.map((p, i) => (
-            <p key={i}>{p.left} → <span className="text-indigo-400">{p.right}</span></p>
-          ))}
-        </div>
-      )}
-
-      {/* Explanation */}
-      {question.explanation && (
-        <div className="flex gap-3 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-          <Lightbulb className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-xs font-semibold text-indigo-400 mb-0.5 uppercase tracking-wider">คำอธิบาย</p>
-            <p className="text-sm text-[#94A3B8] leading-relaxed">{question.explanation}</p>
-          </div>
-        </div>
-      )}
     </motion.div>
   );
 }
 
-// ── Take-mode question (one at a time, instant feedback) ──
-function TakeQuestion({ question, onAnswer, answered, revealed }) {
-  const type = question.type || "multiple-choice";
-  const qId = question.id;
-
-  if (type === "multiple-choice" || type === "true-false") {
-    return (
-      <div className="space-y-3">
-        {question.options.map((opt, idx) => {
-          const isSelected = answered === idx;
-          const isCorrect = revealed && idx === question.correctIndex;
-          const isWrong = revealed && isSelected && !isCorrect;
-
-          let cls = "option-btn";
-          if (revealed) {
-            if (isCorrect) cls += " option-btn-correct";
-            else if (isWrong) cls += " option-btn-wrong";
-          } else if (isSelected) {
-            cls += " option-btn-selected";
-          }
-
-          return (
-            <motion.button key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.05 }}
-              onClick={() => !revealed && onAnswer(idx)}
-              className={cls}
-            >
-              <div className="flex items-center gap-3">
-                <span className={`w-9 h-9 rounded-xl flex items-center justify-center text-base font-bold shrink-0 ${
-                  revealed && isCorrect ? "bg-emerald-500/20 text-emerald-400"
-                  : revealed && isWrong ? "bg-rose-500/20 text-rose-400"
-                  : isSelected ? "bg-indigo-500/20 text-indigo-400"
-                  : "bg-[#334155]/50 text-[#64748B]"
-                }`}>
-                  {String.fromCharCode(65 + idx)}
-                </span>
-                <span className="flex-1 pt-0.5">{opt}</span>
-                {revealed && isCorrect && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
-                {revealed && isWrong && <XCircle className="w-5 h-5 text-rose-400 shrink-0" />}
-              </div>
-            </motion.button>
-          );
-        })}
-      </div>
-    );
-  }
-
-  if (type === "completion" || type === "short-answer") {
-    return (
-      <div className="space-y-4">
-        {type === "completion" ? (
-          <input type="text" value={answered || ""} onChange={(e) => onAnswer(e.target.value)}
-            placeholder="พิมพ์คำตอบ..." disabled={revealed}
-            className="input-field text-lg" />
-        ) : (
-          <textarea value={answered || ""} onChange={(e) => onAnswer(e.target.value)}
-            placeholder="พิมพ์คำตอบสั้นๆ..." rows={2} disabled={revealed}
-            className="input-field text-lg resize-none" />
-        )}
-      </div>
-    );
-  }
-
-  if (type === "matching") {
-    const leftCol = question.leftColumn || [];
-    const rightCol = question.rightColumn || [];
-    const pairMap = answered || {};
-    return (
-      <div className="space-y-3">
-        {leftCol.map((item, idx) => (
-          <div key={item.id} className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
-            <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-center font-medium text-indigo-300">{item.text}</div>
-            <div className="text-[#64748B] text-lg">—</div>
-            <select value={pairMap[item.id] || ""} onChange={(e) => onAnswer({ ...pairMap, [item.id]: e.target.value })}
-              disabled={revealed}
-              className="p-3 border-2 border-[#334155] rounded-xl bg-[#1E293B] text-[#F8FAFC] focus:border-indigo-500 outline-none transition-all disabled:opacity-50">
-              <option value="">— เลือก —</option>
-              {rightCol.map((r) => <option key={r.id} value={r.text}>{r.text}</option>)}
-            </select>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  return <p className="text-[#64748B]">ไม่รองรับประเภทข้อสอบนี้</p>;
-}
-
-// ── View-mode: show all questions with reveal toggle ──
-function ViewQuestion({ question, showAnswer }) {
-  const type = question.type || "multiple-choice";
-  if (!showAnswer) {
-    return (
-      <div className="space-y-2">
-        {question.options ? question.options.map((opt, idx) => (
-          <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-[#334155]/30 border border-[#334155]/50">
-            <span className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 bg-[#334155] text-[#64748B]">
-              {String.fromCharCode(65 + idx)}
-            </span>
-            <span className="flex-1">{opt}</span>
-          </div>
-        )) : (
-          <div className="p-3 rounded-xl bg-[#334155]/30 border border-[#334155]/50 text-[#64748B] text-sm italic">
-            {type === "completion" || type === "short-answer" ? "(พิมพ์คำตอบ)" : "(จับคู่)"}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Show answer
-  return (
-    <div className="space-y-3">
-      {question.options && question.options.map((opt, idx) => {
-        const isCorrect = idx === question.correctIndex;
-        return (
-          <div key={idx} className={`flex items-center gap-3 p-3 rounded-xl border ${
-            isCorrect ? "border-emerald-500/30 bg-emerald-500/10" : "border-[#334155]/50 bg-[#334155]/20"
-          }`}>
-            <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 ${
-              isCorrect ? "bg-emerald-500/20 text-emerald-400" : "bg-[#334155] text-[#64748B]"
-            }`}>
-              {String.fromCharCode(65 + idx)}
-            </span>
-            <span className="flex-1">{opt}</span>
-            {isCorrect && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
-          </div>
-        );
-      })}
-      {(type === "completion" || type === "short-answer") && (
-        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-          <p className="text-sm font-medium text-[#94A3B8] mb-1">เฉลย: <span className="text-emerald-400 font-semibold">
-            {question.answer || question.acceptableAnswers?.[0] || "-"}</span></p>
-          {question.keywords?.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {question.keywords.map((kw, i) => <span key={i} className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded-full text-xs">คีย์: {kw}</span>)}
-            </div>
-          )}
-        </div>
-      )}
-      {type === "matching" && question.pairs && (
-        <div className="space-y-1">
-          {question.pairs.map((p, i) => (
-            <div key={i} className="flex items-center gap-2 text-sm">
-              <span className="font-medium text-[#F8FAFC]">{p.left}</span>
-              <span className="text-indigo-400">→</span>
-              <span className="text-emerald-400">{p.right}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {question.explanation && (
-        <div className="flex gap-3 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-          <Lightbulb className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-xs font-semibold text-indigo-400 mb-0.5 uppercase tracking-wider">คำอธิบาย</p>
-            <p className="text-sm text-[#94A3B8] leading-relaxed">{question.explanation}</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Main Quiz Page ──
+// ────────────── Main Quiz Page ──────────────
 export default function Quiz() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const mode = searchParams.get("mode") || "view";
+
+  const mode = searchParams.get("mode") || "view"; // "view" | "take"
 
   const [quiz, setQuiz] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({});
-  const [revealed, setRevealed] = useState({}); // per-question instant reveal
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [shownAnswers, setShownAnswers] = useState({});
+  const [shownAnswers, setShownAnswers] = useState({}); // { questionId: true } for view mode
   const [answersInitialized, setAnswersInitialized] = useState(false);
 
-  // Timer
-  const [timeLeft, setTimeLeft] = useState(null);
-  const timerRef = useRef(null);
-  const DEFAULT_TIMER_MIN = 30;
-
+  // Attempt tracking
   const pastAttempts = useMemo(() => getAttempts(id), [id]);
 
   // Load quiz
@@ -277,6 +399,7 @@ export default function Quiz() {
         setLoading(true);
         const data = await getQuiz(id);
         setQuiz(data);
+        // Auto-show all answers in view mode
         if (mode === "view" && data?.questions) {
           const all = {};
           data.questions.forEach((q) => { all[q.id] = true; });
@@ -289,276 +412,286 @@ export default function Quiz() {
         setLoading(false);
       }
     })();
-  }, [id, mode]);
+  }, [id]);
 
-  // Mode switch
+  // Reset answers when switching to take mode;
+  // Show all answers when viewing
   useEffect(() => {
     if (mode === "take") {
       setAnswers({});
-      setRevealed({});
       setSubmitted(false);
       setShownAnswers({});
-      if (!timerRef.current) setTimeLeft(DEFAULT_TIMER_MIN * 60);
+    } else if (mode === "view" && quiz?.questions && !answersInitialized) {
+      const all = {};
+      quiz.questions.forEach((q) => { all[q.id] = true; });
+      setShownAnswers(all);
+      setAnswersInitialized(true);
     }
-  }, [mode]);
+  }, [mode, quiz, answersInitialized]);
 
-  // Timer countdown
-  useEffect(() => {
-    if (mode !== "take" || submitted || timeLeft === null || timeLeft <= 0) return;
-    const id2 = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) { clearInterval(id2); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-    timerRef.current = id2;
-    return () => clearInterval(id2);
-  }, [mode, submitted, timeLeft]);
-
-  const formatTime = (s) => {
-    if (s === null) return "";
-    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+  // Start taking the quiz
+  const handleStartTake = () => {
+    setSearchParams({ mode: "take" });
+    setCurrentIndex(0);
   };
 
   const current = quiz?.questions?.[currentIndex];
   const total = quiz?.questionCount || 1;
   const progress = ((currentIndex + 1) / total) * 100;
-  const currentRevealed = revealed[current?.id];
-  const currentAnswer = answers[current?.id];
+  const TypeIcon = TYPE_ICONS[current?.type] || HelpCircle;
 
-  const handleAnswer = (value) => {
-    if (!current || currentRevealed) return;
-    setAnswers((prev) => ({ ...prev, [current.id]: value }));
-    setRevealed((prev) => ({ ...prev, [current.id]: true }));
+  const handleAnswer = (qId, value) => {
+    if (submitted) return;
+    setAnswers((prev) => ({ ...prev, [qId]: value }));
   };
 
-  // Check all answered
-  const allAnswered = quiz?.questions?.every((q) => revealed[q.id]) || false;
-
   const handleSubmit = async () => {
-    if (loading || submitting) return;
+    const answered = Object.keys(answers).length;
+    if (answered < total) {
+      if (!confirm(`คุณยังไม่ได้ตอบ ${total - answered} ข้อ แน่ใจหรือว่าต้องการส่ง?`)) return;
+    }
+
     try {
       setSubmitting(true);
       const result = await submitAnswers(id, answers);
       saveAttempt(id, result);
+      setAnswers((prev) => ({ ...prev, _results: result }));
       setSubmitted(true);
       setSubmitting(false);
-      setTimeout(() => navigate(`/results/${id}`, { state: result }), 600);
+      setTimeout(() => navigate(`/results/${id}`, { state: result }), 800);
     } catch (err) {
       setError("เกิดข้อผิดพลาดในการส่งคำตอบ");
       setSubmitting(false);
     }
   };
 
-  const handleStartTake = () => {
-    setSearchParams({ mode: "take" });
-    setCurrentIndex(0);
-  };
-
-  // Functions needed by timer (defined before the effect)
-  const allShown = isViewing && quiz?.questions?.every((q) => shownAnswers[q.id]);
-  const isViewing = mode === "view";
+  const _results = answers._results;
+  const explanation = _results?.questions?.find((q) => q.id === current?.id);
 
   if (loading && !quiz) return <LoadingPage message="กำลังโหลดข้อสอบ..." />;
   if (error && !quiz) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
-        <XCircle className="w-12 h-12 text-rose-400" />
-        <p className="text-[#94A3B8]">{error}</p>
+        <XCircle className="w-12 h-12 text-red-400" />
+        <p className="text-gray-600">{error}</p>
         <button onClick={() => navigate("/")} className="btn-primary text-sm">กลับหน้าแรก</button>
       </div>
     );
   }
-  if (!quiz) return null;
 
-  const answeredCount = Object.keys(revealed).length;
+  const isViewing = mode === "view";
+  const allShown = isViewing && quiz?.questions?.every((q) => shownAnswers[q.id]);
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
         <div className="flex items-center gap-3 mb-2">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-[#334155]/50 rounded-xl transition-colors">
-            <ChevronLeft className="w-5 h-5 text-[#64748B]" />
+          <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+            <ChevronLeft className="w-5 h-5 text-gray-400" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-[#F8FAFC] truncate">{quiz?.title}</h1>
-            <p className="text-sm text-[#64748B] truncate">{quiz?.source}</p>
+            <h1 className="text-lg font-bold text-gray-800 truncate">{quiz?.title || "ข้อสอบ"}</h1>
+            <p className="text-sm text-gray-400 truncate">{quiz?.source || ""}</p>
           </div>
 
+          {/* Mode switch button */}
           {isViewing ? (
-            <div className="flex items-center gap-2 shrink-0">
-              <button onClick={() => window.print()}
-                className="p-2.5 bg-[#1E293B] border border-[#334155] text-[#94A3B8] hover:text-[#F8FAFC] rounded-xl hover:bg-[#334155] transition-all no-print"
-                title="พิมพ์ข้อสอบ">
-                <Printer className="w-4 h-4" />
-              </button>
-              <button onClick={handleStartTake}
-                className="flex items-center gap-1.5 px-3 py-2 bg-indigo-500 text-white text-sm font-medium rounded-xl hover:bg-indigo-600 transition-all shrink-0 no-print">
-                <Edit3 className="w-4 h-4" /> เริ่มทำข้อสอบ
-              </button>
-            </div>
+            <button onClick={handleStartTake}
+              className="flex items-center gap-1.5 px-3 py-2 bg-genq-600 text-white text-sm font-medium rounded-xl hover:bg-genq-700 transition-colors shrink-0"
+            >
+              <Edit3 className="w-4 h-4" /> เริ่มทำข้อสอบ
+            </button>
           ) : (
-            <button onClick={() => { setSearchParams({ mode: "view" }); setAnswers({}); setRevealed({}); setSubmitted(false); }}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[#1E293B] border border-[#334155] text-[#94A3B8] text-sm font-medium rounded-xl hover:text-[#F8FAFC] transition-all shrink-0 no-print">
+            <button onClick={() => { setSearchParams({ mode: "view" }); setAnswers({}); setSubmitted(false); }}
+              className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-200 transition-colors shrink-0"
+            >
               <Eye className="w-4 h-4" /> ดูเฉลย
             </button>
           )}
         </div>
 
-        {/* Progress + Timer */}
+        {/* Progress bar (only in take mode) */}
         {!isViewing && (
           <div className="flex items-center gap-4 mt-3">
-            <div className="flex-1 bg-[#334155]/50 rounded-full h-1.5 overflow-hidden">
-              <motion.div className="h-full bg-gradient-to-r from-indigo-500 to-indigo-400 rounded-full"
-                initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.3 }} />
+            <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+              <motion.div
+                className="h-full bg-gradient-to-r from-genq-500 to-accent-500 rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 0.3 }}
+              />
             </div>
-            <span className="text-sm font-medium text-[#64748B] shrink-0">{currentIndex + 1} / {total}</span>
-            {timeLeft !== null && (
-              <span className={`flex items-center gap-1 text-sm font-medium shrink-0 ${timeLeft < 60 ? "text-rose-400" : "text-[#64748B]"}`}>
-                <Clock className="w-4 h-4" />
-                {timeLeft <= 0 ? "หมดเวลา" : formatTime(timeLeft)}
-              </span>
-            )}
+            <span className="text-sm font-medium text-gray-500 shrink-0">
+              {currentIndex + 1} / {total}
+            </span>
           </div>
         )}
 
-        {/* Attempts */}
+        {/* Past attempts summary */}
         {pastAttempts.length > 0 && isViewing && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[#64748B]">
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500">
             <span className="font-medium">ทำไปแล้ว {pastAttempts.length} ครั้ง</span>
-            <span className="text-[#334155]">|</span>
-            <span>ล่าสุด: <span className="font-semibold text-indigo-400">{pastAttempts[pastAttempts.length - 1].score}%</span></span>
-            <span className="text-[#334155]">|</span>
-            <span>ดีที่สุด: <span className="font-semibold text-emerald-400">
-              {Math.max(...pastAttempts.map((a) => a.score))}%</span></span>
+            <span className="text-gray-300">|</span>
+            <span>ล่าสุด: <span className="font-semibold text-genq-600">{pastAttempts[pastAttempts.length - 1].score}%</span></span>
+            <span className="text-gray-300">|</span>
+            <span>ดีที่สุด: <span className="font-semibold text-accent-600">
+              {Math.max(...pastAttempts.map((a) => a.score))}%
+            </span></span>
           </div>
         )}
       </motion.div>
 
-      {/* View Mode */}
+      {/* View Mode: show all questions with toggle answers */}
       {isViewing ? (
         <div className="space-y-4">
-          <div className="flex items-center justify-between no-print">
-            <p className="text-sm text-[#64748B]">ทั้งหมด {quiz?.questionCount} ข้อ</p>
-            <button onClick={() => {
-              if (allShown) setShownAnswers({});
-              else { const a = {}; quiz?.questions?.forEach((q) => { a[q.id] = true; }); setShownAnswers(a); }
-            }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                allShown ? "bg-[#334155]/50 text-[#64748B] hover:bg-[#334155]" : "bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20"
-              }`}>
-              {allShown ? <><XCircle className="w-3.5 h-3.5" /> ซ่อนเฉลยทั้งหมด</> : <><CheckCircle2 className="w-3.5 h-3.5" /> แสดงเฉลยทั้งหมด</>}
-            </button>
+          {/* Global toggle */}
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-400">ทั้งหมด {quiz?.questionCount || 0} ข้อ</p>
+            {allShown ? (
+              <button onClick={() => setShownAnswers({})}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                <XCircle className="w-3.5 h-3.5" /> ซ่อนเฉลยทั้งหมด
+              </button>
+            ) : (
+              <button onClick={() => {
+                const all = {};
+                quiz?.questions?.forEach((q) => { all[q.id] = true; });
+                setShownAnswers(all);
+              }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-accent-100 text-accent-700 rounded-lg hover:bg-accent-200 transition-colors"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" /> แสดงเฉลยทั้งหมด
+              </button>
+            )}
           </div>
-
           {quiz?.questions?.map((q, idx) => (
-            <motion.div key={q.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }} className="card">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-8 h-8 bg-indigo-500/15 text-indigo-400 font-bold rounded-lg flex items-center justify-center text-sm">{idx + 1}</span>
-                <span className="text-sm text-[#64748B]">ข้อ</span>
+            <motion.div
+              key={q.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.03 }}
+              className="card"
+            >
+              {/* Question header */}
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-8 h-8 bg-genq-100 text-genq-700 font-bold rounded-lg flex items-center justify-center text-sm">
+                  {idx + 1}
+                </span>
+                <span className="text-sm text-gray-400">ข้อ</span>
                 {q.type && (
-                  <span className="ml-auto px-3 py-1 bg-[#334155]/50 text-[#94A3B8] rounded-full text-xs flex items-center gap-1">
+                  <span className="ml-auto px-3 py-1 bg-gray-100 text-gray-500 rounded-full text-xs flex items-center gap-1.5">
                     {(() => { const I = TYPE_ICONS[q.type] || HelpCircle; return <I className="w-3 h-3" />; })()}
                     {TYPE_LABELS[q.type] || q.type}
                   </span>
                 )}
               </div>
-              <h2 className="text-xl font-semibold text-[#F8FAFC] leading-relaxed mb-4">{q.question}</h2>
-              <ViewQuestion question={q} showAnswer={shownAnswers[q.id]} />
-              <div className="mt-3 no-print">
-                <button onClick={() => setShownAnswers((prev) => ({ ...prev, [q.id]: !prev[q.id] }))}
+
+              {/* Question text */}
+              <h2 className="text-xl font-semibold text-gray-800 leading-relaxed mb-4">
+                {q.question}
+              </h2>
+
+              {/* Answer area with toggle */}
+              <ViewRenderer question={q} showAnswer={shownAnswers[q.id]} />
+
+              {/* Toggle button */}
+              <div className="mt-3">
+                <button
+                  onClick={() => setShownAnswers((prev) => ({ ...prev, [q.id]: !prev[q.id] }))}
                   className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                    shownAnswers[q.id] ? "bg-[#334155]/50 text-[#64748B] hover:bg-[#334155]" : "bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20"
-                  }`}>
-                  {shownAnswers[q.id] ? <><XCircle className="w-3.5 h-3.5" /> ซ่อนเฉลย</> : <><CheckCircle2 className="w-3.5 h-3.5" /> ดูเฉลย</>}
+                    shownAnswers[q.id]
+                      ? "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                      : "bg-accent-100 text-accent-700 hover:bg-accent-200"
+                  }`}
+                >
+                  {shownAnswers[q.id] ? (
+                    <><XCircle className="w-3.5 h-3.5" /> ซ่อนเฉลย</>
+                  ) : (
+                    <><CheckCircle2 className="w-3.5 h-3.5" /> ดูเฉลย</>
+                  )}
                 </button>
               </div>
             </motion.div>
           ))}
         </div>
       ) : (
-        /* Take Mode — one question at a time, flashcard style */
         <>
-          {/* Question card */}
+          {/* Take Mode: one question at a time */}
           <AnimatePresence mode="wait">
-            <motion.div key={currentIndex}
-              initial={{ opacity: 0, x: 60 }} animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -60 }} transition={{ duration: 0.25 }}
+            <motion.div
+              key={currentIndex}
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.2 }}
             >
-              <div className="card min-h-[320px] flex flex-col">
-                {/* Type badge + number */}
+              <div className="card mb-4">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="w-8 h-8 bg-indigo-500/15 text-indigo-400 font-bold rounded-lg flex items-center justify-center text-sm">{currentIndex + 1}</span>
-                  <span className="text-sm text-[#64748B]">ข้อ</span>
+                  <span className="w-8 h-8 bg-genq-100 text-genq-700 font-bold rounded-lg flex items-center justify-center text-sm">
+                    {currentIndex + 1}
+                  </span>
+                  <span className="text-sm text-gray-400">ข้อ</span>
                   {current?.type && (
-                    <span className="ml-auto px-3 py-1 bg-[#334155]/50 text-[#94A3B8] rounded-full text-xs flex items-center gap-1">
-                      {(() => { const I = TYPE_ICONS[current.type] || HelpCircle; return <I className="w-3 h-3" />; })()}
+                    <span className="ml-auto px-3 py-1 bg-gray-100 text-gray-500 rounded-full text-xs flex items-center gap-1.5">
+                      <TypeIcon className="w-3 h-3" />
                       {TYPE_LABELS[current.type] || current.type}
                     </span>
                   )}
-                  {/* Answer indicator */}
-                  {currentRevealed && (
-                    <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full font-medium">ตอบแล้ว</span>
-                  )}
                 </div>
 
-                {/* Question text */}
-                <h2 className="text-xl sm:text-2xl font-semibold text-[#F8FAFC] leading-relaxed mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 leading-relaxed mb-6">
                   {current?.question}
                 </h2>
 
-                {/* Options area */}
-                <div className="flex-1">
-                  {current && (
-                    <TakeQuestion question={current} onAnswer={handleAnswer} answered={currentAnswer} revealed={currentRevealed} />
-                  )}
-                </div>
-
-                {/* Instant reveal after answering */}
-                {currentRevealed && current && (
-                  <InstantReveal question={current} userAnswer={currentAnswer} />
+                {current && (
+                  <QuestionRenderer
+                    question={current}
+                    answers={answers}
+                    onAnswer={handleAnswer}
+                    submitted={submitted}
+                    explanation={explanation}
+                  />
                 )}
               </div>
             </motion.div>
           </AnimatePresence>
 
-          {/* Error */}
-          {error && <div className="mt-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-sm">{error}</div>}
+          {submitted && _results?.pendingCount > 0 && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-sm text-center">
+              📝 มี {_results.pendingCount} ข้อที่ต้องรอการตรวจ (Essay)
+            </div>
+          )}
 
-          {/* Navigation + Submit */}
-          <div className="flex items-center justify-between mt-6 no-print">
+          {error && quiz && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">{error}</div>
+          )}
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between mt-6">
             <div>
               {currentIndex > 0 && (
-                <button onClick={() => setCurrentIndex((i) => i - 1)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-[#1E293B] border border-[#334155] text-[#94A3B8] rounded-xl hover:text-[#F8FAFC] hover:bg-[#334155] transition-all text-sm">
+                <button onClick={() => setCurrentIndex((i) => i - 1)} className="btn-secondary text-sm flex items-center gap-2">
                   <ChevronLeft className="w-4 h-4" /> ข้อก่อนหน้า
                 </button>
               )}
             </div>
             <div className="flex gap-3">
+              {currentIndex === total - 1 && !submitted && (
+                <button onClick={handleSubmit} className="btn-primary text-sm flex items-center gap-2" disabled={submitting}>
+                  {submitting ? <RotateCcw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  ส่งคำตอบ
+                </button>
+              )}
               {currentIndex < total - 1 && (
-                <button onClick={() => setCurrentIndex((i) => i + 1)}
-                  className="btn-primary text-sm flex items-center gap-2">
+                <button onClick={() => setCurrentIndex((i) => i + 1)} className="btn-primary text-sm flex items-center gap-2">
                   ข้อถัดไป <ChevronRight className="w-4 h-4" />
                 </button>
               )}
-              {/* Submit always visible when on last question or all answered */}
-              {!submitted && (
-                <button onClick={handleSubmit} disabled={submitting}
-                  className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl transition-all ${
-                    currentIndex === total - 1 || allAnswered
-                      ? "bg-indigo-500 text-white hover:bg-indigo-600 shadow-lg shadow-indigo-500/25"
-                      : "bg-[#1E293B] text-[#64748B] border border-[#334155] hover:text-[#F8FAFC]"
-                  }`}>
-                  {submitting ? <RotateCcw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  ส่งคำตอบ {answeredCount}/{total}
-                </button>
-              )}
               {submitted && (
-                <button onClick={() => navigate(`/results/${id}`)}
-                  className="btn-primary text-sm flex items-center gap-2">
-                  <Award className="w-4 h-4" /> ดูผลลัพธ์
+                <button onClick={() => navigate(`/results/${id}`)} className="btn-primary text-sm flex items-center gap-2">
+                  <FileText className="w-4 h-4" /> ดูผลลัพธ์
                 </button>
               )}
             </div>
