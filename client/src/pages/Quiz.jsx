@@ -361,7 +361,10 @@ function ExplanationBox({ text }) {
     >
       <div className="flex gap-3">
         <Lightbulb className="w-5 h-5 text-genq-500 shrink-0 mt-0.5" />
-        <p className="text-sm text-genq-800 leading-relaxed">{text}</p>
+        <div>
+          <p className="text-xs font-semibold text-genq-600 mb-0.5 uppercase tracking-wider">คำอธิบาย</p>
+          <p className="text-sm text-genq-800 leading-relaxed">{text}</p>
+        </div>
       </div>
     </motion.div>
   );
@@ -384,6 +387,7 @@ export default function Quiz() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [shownAnswers, setShownAnswers] = useState({}); // { questionId: true } for view mode
+  const [answersInitialized, setAnswersInitialized] = useState(false);
 
   // Attempt tracking
   const pastAttempts = useMemo(() => getAttempts(id), [id]);
@@ -395,6 +399,13 @@ export default function Quiz() {
         setLoading(true);
         const data = await getQuiz(id);
         setQuiz(data);
+        // Auto-show all answers in view mode
+        if (mode === "view" && data?.questions) {
+          const all = {};
+          data.questions.forEach((q) => { all[q.id] = true; });
+          setShownAnswers(all);
+          setAnswersInitialized(true);
+        }
       } catch (err) {
         setError(err.response?.data?.error || "ไม่พบข้อสอบนี้");
       } finally {
@@ -403,13 +414,20 @@ export default function Quiz() {
     })();
   }, [id]);
 
-  // Reset answers when switching to take mode
+  // Reset answers when switching to take mode;
+  // Show all answers when viewing
   useEffect(() => {
     if (mode === "take") {
       setAnswers({});
       setSubmitted(false);
+      setShownAnswers({});
+    } else if (mode === "view" && quiz?.questions && !answersInitialized) {
+      const all = {};
+      quiz.questions.forEach((q) => { all[q.id] = true; });
+      setShownAnswers(all);
+      setAnswersInitialized(true);
     }
-  }, [mode]);
+  }, [mode, quiz, answersInitialized]);
 
   // Start taking the quiz
   const handleStartTake = () => {
