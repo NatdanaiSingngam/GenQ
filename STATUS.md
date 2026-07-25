@@ -1,27 +1,24 @@
 # STATUS.md — GenQ Project
 
 ## Current Status
-✅ **MVP Complete** — Full-stack GenQ web app built and verified.
-
-## Current Objective
-Deliver a demo-able MVP for hackathon.
+✅ **MVP Complete + Cloudflare Deploy Ready**
 
 ## Active Blocker
-None — awaiting GitHub repo URL to push.
+Requires Cloudflare KV namespace creation + secret config on Cloudflare Dashboard before deployment.
 
-## Completed Milestones
-- [x] Project structure & tech stack decided (React + Vite + Express + Tailwind)
-- [x] Server: Express API with file upload, Gemini AI integration, quiz CRUD
-- [x] Client: Landing (drag-drop), Quiz (interactive), Results (dashboard), History
-- [x] Seed data: 15 questions on Database Systems
-- [x] Git initialized, local commit created
-- [x] Build verified (client builds successfully, API endpoints functional)
+## Completed
+- [x] Express backend (MVP)
+- [x] React + Vite frontend (all pages)
+- [x] Cloudflare Worker backend (Hono.js)
+- [x] Cloudflare Pages frontend config
+- [x] GitHub push
 
-## Verification Evidence
-- `npx vite build` → ✅ 1998 modules built, output to dist/
-- `node index.js` → ✅ API starts in Mock Mode
-- `GET /api/quiz/seed/data` → ✅ Returns 15 questions
-- `POST /api/quiz/:id/submit` → ✅ Returns score, grade, explanations
+## Verification
+- `npx wrangler deploy --dry-run` → 114.88 KiB (under 1MB Worker limit)
+- `GEMINI_API_KEY` in `.dev.vars` (local) / Cloudflare Secrets (prod)
+- KV with in-memory fallback for local development
 
-## Next Action
-Ask user for GitHub repo URL to push code.
+## Next Steps
+1. User creates KV namespace on Cloudflare
+2. User adds GEMINI_API_KEY secret via `npx wrangler secret put`
+3. Deploy Worker + Pages

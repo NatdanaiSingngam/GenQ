@@ -115,52 +115,32 @@ function generateMockQuiz(filename) {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory fallback store (when KV is not bound during local dev)
+// Global in-memory store (reliable for MVP, survives across same-isolate requests)
+// KV can be added later for persistence across deploys
 // ---------------------------------------------------------------------------
-const memoryStore = new Map();
+const store = new Map();
 
-function getStore(env) {
-  return env.GENQ_KV || {
-    put: async (key, value, opts) => {
-      memoryStore.set(key, value);
-    },
-    get: async (key) => memoryStore.get(key) || null,
-    list: async () => ({ keys: Array.from(memoryStore.keys()).map((k) => ({ name: k })) }),
-  };
+function normKey(id) {
+  return "q:" + id.replace(/^quiz:/, "");
 }
 
-async function saveQuiz(env, quiz) {
-  const store = getStore(env);
-  await store.put(quiz.id, JSON.stringify(quiz), { expirationTtl: 86400 * 7 });
+async function saveQuiz(_env, quiz) {
+  const cleanId = quiz.id.replace(/^quiz:/, "");
+  store.set(normKey(cleanId), JSON.stringify({ ...quiz, id: cleanId }));
 }
 
-async function loadQuiz(env, id) {
-  const store = getStore(env);
-  const raw = await store.get(id);
+async function loadQuiz(_env, id) {
+  const raw = store.get(normKey(id));
   return raw ? JSON.parse(raw) : null;
 }
 
-async function listQuizzes(env) {
-  const store = getStore(env);
-  const list = await store.list({ prefix: "quiz:" });
+async function listQuizzes(_env) {
   const quizzes = [];
-  // Support both KV list format and simple Map key list
-  const keys = list.keys || [];
-  for (const entry of keys) {
-    const keyName = typeof entry === "string" ? entry : entry.name;
-    const raw = await store.get(keyName);
-    if (raw) {
-      try {
-        const data = JSON.parse(raw);
-        quizzes.push({
-          id: data.id,
-          title: data.title,
-          source: data.source,
-          createdAt: data.createdAt,
-          questionCount: data.questionCount,
-        });
-      } catch { /* skip malformed */ }
-    }
+  for (const v of store.values()) {
+    try {
+      const d = JSON.parse(v);
+      quizzes.push({ id: d.id, title: d.title, source: d.source, createdAt: d.createdAt, questionCount: d.questionCount });
+    } catch { /* skip */ }
   }
   return quizzes;
 }
@@ -174,6 +154,8 @@ app.use("/api/*", cors({ origin: "*", allowMethods: ["GET", "POST", "OPTIONS"], 
 
 // Health
 app.get("/api/health", (c) => c.json({ status: "ok", timestamp: new Date().toISOString() }));
+
+
 
 // GET /api/quiz — List all quizzes
 app.get("/api/quiz", async (c) => {
@@ -307,8 +289,8 @@ app.post("/api/upload", async (c) => {
       quizData = generateMockQuiz(filename);
     }
 
-    // Save to KV
-    const quizId = `quiz:${crypto.randomUUID()}`;
+    // Save to store
+    const quizId = crypto.randomUUID();
     const quizRecord = {
       id: quizId,
       title: quizData.title,
