@@ -96,6 +96,19 @@ export default function History() {
     setConfirmDelete(null);
   };
 
+  const handleDeleteFolder = (source) => {
+    setConfirmDelete("folder:" + source);
+  };
+
+  const confirmDeleteFolder = (source) => {
+    const items = folders[source] || [];
+    for (const item of items) {
+      removeFromSessionHistory(item.id);
+    }
+    setQuizzes((prev) => prev.filter((q) => q.source !== source));
+    setConfirmDelete(null);
+  };
+
   const handleClearAll = () => {
     setConfirmDelete("all");
   };
@@ -181,6 +194,30 @@ export default function History() {
                         <h3 className="font-semibold text-gray-800 truncate">{source}</h3>
                         <p className="text-sm text-gray-400">{items.length} ชุด</p>
                       </div>
+                      {confirmDelete === "folder:" + source ? (
+                        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => confirmDeleteFolder(source)}
+                            className="px-2 py-1 text-xs font-medium text-white bg-red-500 rounded-lg hover:bg-red-600"
+                          >
+                            ลบ
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(null)}
+                            className="px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 rounded-lg"
+                          >
+                            ยกเลิก
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteFolder(source); }}
+                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                          title="ลบโฟลเดอร์นี้"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                       <ChevronDown className={`w-5 h-5 text-gray-300 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                     </div>
 
