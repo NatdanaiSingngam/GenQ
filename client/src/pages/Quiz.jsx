@@ -376,7 +376,7 @@ export default function Quiz() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const mode = searchParams.get("mode") || "view"; // "view" | "take"
+  const mode = searchParams.get("mode") || "take"; // "take" | "view"
 
   const [quiz, setQuiz] = useState(null);
   const [loading, setLoading] = useState(true);

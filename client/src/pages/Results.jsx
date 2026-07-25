@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  Award, Target, BookOpen, ChevronLeft, RotateCcw, Home,
+  Award, Target, BookOpen, ChevronLeft, RotateCcw, Eye, Home,
   AlertTriangle, CheckCircle2, XCircle, HelpCircle,
   AlignLeft, SplitSquareHorizontal, Type, FileText,
 } from "lucide-react";
@@ -286,6 +286,9 @@ export default function Results() {
       {/* Actions */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
         className="flex flex-wrap gap-3 mt-8 justify-center">
+        <button onClick={() => navigate(`/quiz/${id}?mode=view`)} className="btn-secondary text-sm flex items-center gap-2">
+          <Eye className="w-4 h-4" /> ดูข้อสอบพร้อมเฉลย
+        </button>
         <button onClick={() => navigate(`/quiz/${id}`)} className="btn-primary text-sm flex items-center gap-2">
           <RotateCcw className="w-4 h-4" /> ทำอีกครั้ง
         </button>
