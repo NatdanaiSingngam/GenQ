@@ -28,11 +28,39 @@ const TYPE_LABELS = {
   essay: "เขียนตอบ",
 };
 
-// ────────────── View Mode Renderer (shows correct answers) ──────────────
-function ViewRenderer({ question }) {
+// ────────────── View Mode Renderer (toggle to show answers) ──────────────
+function ViewRenderer({ question, showAnswer }) {
   const type = question.type || "multiple-choice";
   const expText = question.explanation;
 
+  if (!showAnswer) {
+    // Show options/input without highlighting answers
+    return (
+      <div className="space-y-2">
+        {question.options ? (
+          question.options.map((opt, idx) => (
+            <div key={idx} className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50">
+              <span className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 bg-gray-200 text-gray-500">
+                {String.fromCharCode(65 + idx)}
+              </span>
+              <span className="flex-1 pt-1">{opt}</span>
+            </div>
+          ))
+        ) : (type === "completion" || type === "short-answer") ? (
+          <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 text-gray-400 text-sm italic">
+            (พิมพ์คำตอบที่นี่)
+          </div>
+        ) : type === "matching" ? (
+          <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 text-gray-400 text-sm italic">
+            (จับคู่โดยเลือกรายการทางขวา)
+          </div>
+        ) : null}
+        <p className="text-xs text-gray-400 mt-2">กด "ดูเฉลย" เพื่อดูคำตอบที่ถูกต้อง</p>
+      </div>
+    );
+  }
+
+  // ── Show answers ──
   const AnswerBadge = () => (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-accent-100 text-accent-700 rounded-full">
       <CheckCircle2 className="w-3 h-3" /> เฉลย
@@ -355,6 +383,7 @@ export default function Quiz() {
   const [answers, setAnswers] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [shownAnswers, setShownAnswers] = useState({}); // { questionId: true } for view mode
 
   // Attempt tracking
   const pastAttempts = useMemo(() => getAttempts(id), [id]);
@@ -433,6 +462,7 @@ export default function Quiz() {
   }
 
   const isViewing = mode === "view";
+  const allShown = isViewing && quiz?.questions?.every((q) => shownAnswers[q.id]);
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
@@ -494,9 +524,30 @@ export default function Quiz() {
         )}
       </motion.div>
 
-      {/* View Mode: show all questions with answers */}
+      {/* View Mode: show all questions with toggle answers */}
       {isViewing ? (
-        <div className="space-y-6">
+        <div className="space-y-4">
+          {/* Global toggle */}
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-400">ทั้งหมด {quiz?.questionCount || 0} ข้อ</p>
+            {allShown ? (
+              <button onClick={() => setShownAnswers({})}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                <XCircle className="w-3.5 h-3.5" /> ซ่อนเฉลยทั้งหมด
+              </button>
+            ) : (
+              <button onClick={() => {
+                const all = {};
+                quiz?.questions?.forEach((q) => { all[q.id] = true; });
+                setShownAnswers(all);
+              }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-accent-100 text-accent-700 rounded-lg hover:bg-accent-200 transition-colors"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" /> แสดงเฉลยทั้งหมด
+              </button>
+            )}
+          </div>
           {quiz?.questions?.map((q, idx) => (
             <motion.div
               key={q.id}
@@ -524,8 +575,26 @@ export default function Quiz() {
                 {q.question}
               </h2>
 
-              {/* Correct answer display */}
-              <ViewRenderer question={q} />
+              {/* Answer area with toggle */}
+              <ViewRenderer question={q} showAnswer={shownAnswers[q.id]} />
+
+              {/* Toggle button */}
+              <div className="mt-3">
+                <button
+                  onClick={() => setShownAnswers((prev) => ({ ...prev, [q.id]: !prev[q.id] }))}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                    shownAnswers[q.id]
+                      ? "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                      : "bg-accent-100 text-accent-700 hover:bg-accent-200"
+                  }`}
+                >
+                  {shownAnswers[q.id] ? (
+                    <><XCircle className="w-3.5 h-3.5" /> ซ่อนเฉลย</>
+                  ) : (
+                    <><CheckCircle2 className="w-3.5 h-3.5" /> ดูเฉลย</>
+                  )}
+                </button>
+              </div>
             </motion.div>
           ))}
         </div>

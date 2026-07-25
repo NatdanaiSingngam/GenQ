@@ -256,6 +256,11 @@ export default function History() {
                                   <span className="text-xs text-genq-500 bg-genq-50 px-1.5 py-0.5 rounded shrink-0">
                                     ชุด {quiz.round || idx + 1}
                                   </span>
+                                  {idx === items.length - 1 && (
+                                    <span className="text-xs text-accent-600 bg-accent-100 px-1.5 py-0.5 rounded shrink-0">
+                                      ล่าสุด
+                                    </span>
+                                  )}
                                 </h4>
                                 <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
                                   <span className="flex items-center gap-1">
