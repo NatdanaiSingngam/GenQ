@@ -101,7 +101,7 @@ export default function History() {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-2xl font-bold text-heading flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-[#F8FAFC] flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-500/15 rounded-xl flex items-center justify-center">
               <BookOpen className="w-5 h-5 text-indigo-400" />
             </div>
@@ -115,7 +115,7 @@ export default function History() {
             </button>
           )}
         </div>
-        <p className="text-muted text-sm">
+        <p className="text-[#64748B] text-sm">
           {isLoggedIn ? "ข้อสอบทั้งหมดของคุณ (บันทึกถาวร)" : "ข้อสอบชั่วคราว — จะหายเมื่อปิดแท็บ"}
         </p>
       </motion.div>
@@ -123,7 +123,7 @@ export default function History() {
       {/* Search */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
         className="relative mb-6">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#64748B]" />
         <input type="text" placeholder="ค้นหาชื่อข้อสอบ หรือชื่อไฟล์..."
           value={search} onChange={(e) => setSearch(e.target.value)}
           className="input-field pl-12" />
@@ -131,13 +131,13 @@ export default function History() {
 
       {quizzes.length === 0 ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
-          <div className="w-20 h-20 bg-surface rounded-2xl flex items-center justify-center mx-auto mb-4 border border-surface/50">
-            <Inbox className="w-8 h-8 text-muted" />
+          <div className="w-20 h-20 bg-[#1E293B] rounded-2xl flex items-center justify-center mx-auto mb-4 border border-[#334155]/50">
+            <Inbox className="w-8 h-8 text-[#64748B]" />
           </div>
-          <p className="text-body font-medium mb-2">
+          <p className="text-[#94A3B8] font-medium mb-2">
             {search ? "ไม่พบข้อสอบที่ค้นหา" : "ยังไม่มีข้อสอบที่เคยสร้าง"}
           </p>
-          <p className="text-muted text-sm mb-4">
+          <p className="text-[#64748B] text-sm mb-4">
             {search ? "ลองเปลี่ยนคำค้นหา" : "ลองอัปโหลดไฟล์สไลด์เพื่อเริ่มต้น"}
           </p>
           <button onClick={() => navigate("/")} className="btn-primary text-sm">ไปที่หน้าแรก</button>
@@ -153,20 +153,20 @@ export default function History() {
                 return (
                   <motion.div key={source} layout className="card overflow-hidden p-0">
                     <div onClick={() => toggleFolder(source)}
-                      className="flex items-center gap-3 p-4 cursor-pointer hover:bg-hover/30 transition-colors"
+                      className="flex items-center gap-3 p-4 cursor-pointer hover:bg-[#334155]/30 transition-colors"
                     >
                       <div className="w-10 h-10 bg-amber-500/15 rounded-xl flex items-center justify-center shrink-0">
                         {isExpanded ? <FolderOpen className="w-5 h-5 text-amber-400" /> : <Folder className="w-5 h-5 text-amber-400" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-heading truncate">{source}</h3>
-                        <p className="text-sm text-muted">{items.length} ชุด</p>
+                        <h3 className="font-semibold text-[#F8FAFC] truncate">{source}</h3>
+                        <p className="text-sm text-[#64748B]">{items.length} ชุด</p>
                         {stats && (
                           <div className="flex items-center gap-2 mt-1 text-xs">
-                            <span className="text-muted">ทำ {stats.count} ครั้ง</span>
-                            <span className="text-muted">|</span>
+                            <span className="text-[#64748B]">ทำ {stats.count} ครั้ง</span>
+                            <span className="text-[#334155]">|</span>
                             <span>ล่าสุด <span className="font-semibold text-indigo-400">{stats.latest}%</span></span>
-                            <span className="text-muted">|</span>
+                            <span className="text-[#334155]">|</span>
                             <span>ดีที่สุด <span className="font-semibold text-emerald-400">{stats.best}%</span></span>
                           </div>
                         )}
@@ -176,22 +176,22 @@ export default function History() {
                           <button onClick={() => confirmDeleteFolder(source)}
                             className="px-2 py-1 text-xs font-medium text-white bg-rose-500 rounded-lg hover:bg-rose-600">ลบ</button>
                           <button onClick={() => setConfirmDelete(null)}
-                            className="px-2 py-1 text-xs text-body hover:bg-hover rounded-lg">ยกเลิก</button>
+                            className="px-2 py-1 text-xs text-[#94A3B8] hover:bg-[#334155] rounded-lg">ยกเลิก</button>
                         </div>
                       ) : (
                         <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(source); }}
-                          className="p-1.5 text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors shrink-0">
+                          className="p-1.5 text-[#64748B] hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors shrink-0">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
-                      <ChevronDown className={`w-5 h-5 text-muted transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                      <ChevronDown className={`w-5 h-5 text-[#64748B] transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                     </div>
 
                     {isExpanded && (
-                      <div className="border-t border-surface/50">
+                      <div className="border-t border-[#334155]/50">
                         {items.map((quiz, idx) => (
                           <div key={quiz.id}
-                            className="flex items-center gap-3 px-4 py-3 pl-14 hover:bg-hover/20 transition-colors group border-b border-surface/30 last:border-0"
+                            className="flex items-center gap-3 px-4 py-3 pl-14 hover:bg-[#334155]/20 transition-colors group border-b border-[#334155]/30 last:border-0"
                           >
                             <div onClick={() => navigate(`/quiz/${quiz.id}?mode=view`)}
                               className="flex-1 flex items-center gap-3 min-w-0 cursor-pointer"
@@ -200,21 +200,21 @@ export default function History() {
                                 <FileText className="w-4 h-4 text-indigo-400" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <h4 className="font-medium text-heading text-sm truncate flex items-center gap-2">
+                                <h4 className="font-medium text-[#F8FAFC] text-sm truncate flex items-center gap-2">
                                   {quiz.title}
                                   <span className="text-xs text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded shrink-0">ชุด {quiz.round || idx + 1}</span>
                                   {idx === items.length - 1 && (
                                     <span className="text-xs text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0">ล่าสุด</span>
                                   )}
                                 </h4>
-                                <div className="flex items-center gap-3 text-xs text-muted mt-0.5">
+                                <div className="flex items-center gap-3 text-xs text-[#64748B] mt-0.5">
                                   <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" /> {quiz.questionCount} ข้อ</span>
                                   <span className="flex items-center gap-1"><Clock className="w-3 h-3" />
                                     {quiz.createdAt ? new Date(quiz.createdAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}
                                   </span>
                                 </div>
                               </div>
-                              <ChevronRight className="w-4 h-4 text-muted shrink-0" />
+                              <ChevronRight className="w-4 h-4 text-[#64748B] shrink-0" />
                             </div>
 
                             {confirmDelete === quiz.id ? (
@@ -222,11 +222,11 @@ export default function History() {
                                 <button onClick={(e) => { e.stopPropagation(); confirmDeleteOne(quiz.id); }}
                                   className="px-2 py-1 text-xs font-medium text-white bg-rose-500 rounded-lg hover:bg-rose-600">ลบ</button>
                                 <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }}
-                                  className="px-2 py-1 text-xs text-body hover:bg-hover rounded-lg">ยกเลิก</button>
+                                  className="px-2 py-1 text-xs text-[#94A3B8] hover:bg-[#334155] rounded-lg">ยกเลิก</button>
                               </div>
                             ) : (
                               <button onClick={(e) => { e.stopPropagation(); handleDeleteOne(quiz.id); }}
-                                className="p-1.5 text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                                className="p-1.5 text-[#64748B] hover:text-rose-400 hover:bg-rose-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all shrink-0">
                                 <X className="w-4 h-4" />
                               </button>
                             )}
@@ -254,16 +254,16 @@ export default function History() {
                       <Brain className="w-6 h-6 text-indigo-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-heading line-clamp-1">{quiz.title}</h3>
-                      <div className="flex items-center gap-3 text-sm text-muted mt-1">
+                      <h3 className="font-semibold text-[#F8FAFC] line-clamp-1">{quiz.title}</h3>
+                      <div className="flex items-center gap-3 text-sm text-[#64748B] mt-1">
                         <span className="flex items-center gap-1"><BookOpen className="w-3.5 h-3.5" /> {quiz.questionCount} ข้อ</span>
-                        {quiz.source && <span className="text-xs text-muted truncate max-w-[150px]">{quiz.source}</span>}
+                        {quiz.source && <span className="text-xs text-[#475569] truncate max-w-[150px]">{quiz.source}</span>}
                         <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />
                           {quiz.createdAt ? new Date(quiz.createdAt).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
                         </span>
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-muted shrink-0" />
+                    <ChevronRight className="w-5 h-5 text-[#64748B] shrink-0" />
                   </div>
 
                   {confirmDelete === quiz.id ? (
@@ -271,11 +271,11 @@ export default function History() {
                       <button onClick={(e) => { e.stopPropagation(); confirmDeleteOne(quiz.id); }}
                         className="px-2.5 py-1.5 text-xs font-medium text-white bg-rose-500 rounded-lg hover:bg-rose-600">ลบ</button>
                       <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }}
-                        className="px-2.5 py-1.5 text-xs text-body hover:bg-hover rounded-lg">ยกเลิก</button>
+                        className="px-2.5 py-1.5 text-xs text-[#94A3B8] hover:bg-[#334155] rounded-lg">ยกเลิก</button>
                     </div>
                   ) : (
                     <button onClick={(e) => { e.stopPropagation(); handleDeleteOne(quiz.id); }}
-                      className="p-2 text-muted hover:text-rose-400 hover:bg-rose-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all shrink-0 mr-1">
+                      className="p-2 text-[#64748B] hover:text-rose-400 hover:bg-rose-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all shrink-0 mr-1">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   )}
@@ -286,11 +286,11 @@ export default function History() {
 
           {filteredStandalone.length === 0 && filteredFolders.length === 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
-              <div className="w-16 h-16 bg-surface rounded-2xl flex items-center justify-center mx-auto mb-3 border border-surface/50">
-                <Search className="w-7 h-7 text-muted" />
+              <div className="w-16 h-16 bg-[#1E293B] rounded-2xl flex items-center justify-center mx-auto mb-3 border border-[#334155]/50">
+                <Search className="w-7 h-7 text-[#64748B]" />
               </div>
-              <p className="text-body font-medium">ไม่พบข้อสอบที่ค้นหา</p>
-              <p className="text-muted text-sm">ลองเปลี่ยนคำค้นหา</p>
+              <p className="text-[#94A3B8] font-medium">ไม่พบข้อสอบที่ค้นหา</p>
+              <p className="text-[#64748B] text-sm">ลองเปลี่ยนคำค้นหา</p>
             </motion.div>
           )}
         </div>
@@ -300,21 +300,21 @@ export default function History() {
       {confirmDelete === "all" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-            className="bg-surface rounded-2xl shadow-2xl shadow-black/40 p-6 max-w-sm w-full border border-surface/50"
+            className="bg-[#1E293B] rounded-2xl shadow-2xl shadow-black/40 p-6 max-w-sm w-full border border-[#334155]/50"
           >
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-rose-500/15 rounded-xl flex items-center justify-center">
                 <AlertCircle className="w-5 h-5 text-rose-400" />
               </div>
-              <h3 className="text-lg font-bold text-heading">ลบประวัติทั้งหมด?</h3>
+              <h3 className="text-lg font-bold text-[#F8FAFC]">ลบประวัติทั้งหมด?</h3>
             </div>
-            <p className="text-body text-sm mb-6">
+            <p className="text-[#94A3B8] text-sm mb-6">
               การลบประวัติในเครื่องนี้จะไม่สามารถกู้คืนได้สำหรับข้อสอบชั่วคราว
               {isLoggedIn ? " (ข้อสอบบนเซิร์ฟเวอร์จะไม่ถูกลบ)" : ""}
             </p>
             <div className="flex gap-3">
               <button onClick={() => setConfirmDelete(null)}
-                className="flex-1 px-4 py-2.5 border border-surface rounded-xl text-body font-medium hover:bg-hover transition-all">
+                className="flex-1 px-4 py-2.5 border border-[#334155] rounded-xl text-[#94A3B8] font-medium hover:bg-[#334155] transition-all">
                 ยกเลิก
               </button>
               <button onClick={confirmClearAll}
