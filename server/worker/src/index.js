@@ -3,10 +3,11 @@ import { cors } from "hono/cors";
 import { SEED_DATA } from "./seed.js";
 
 // ---------------------------------------------------------------------------
-// Gemini AI: call the REST API directly (works in Workers, no SDK needed)
+// AI Quiz Generation — Workers AI (primary) + Gemini (secondary) + Mock (fallback)
 // ---------------------------------------------------------------------------
-async function generateQuizWithGemini(apiKey, text, filename) {
-  const prompt = `คุณคือผู้ช่วยสร้างข้อสอบจากเนื้อหาเอกสาร จงสร้างข้อสอบแบบ multiple-choice จำนวน 10 ข้อ จากเนื้อหาต่อไปนี้
+
+// Shared prompt template
+const QUIZ_PROMPT = `คุณคือผู้ช่วยสร้างข้อสอบจากเนื้อหาเอกสาร จงสร้างข้อสอบแบบ multiple-choice จำนวน 10 ข้อ จากเนื้อหาต่อไปนี้
 
 รูปแบบผลลัพธ์: ให้ตอบเป็น JSON เท่านั้น ไม่ต้องมีข้อความอื่นใดนอก JSON
 
@@ -14,7 +15,6 @@ async function generateQuizWithGemini(apiKey, text, filename) {
   "title": "ชื่อข้อสอบที่สื่อถึงเนื้อหา",
   "questions": [
     {
-      "id": "q1",
       "question": "คำถาม?",
       "options": ["ตัวเลือก ก", "ตัวเลือก ข", "ตัวเลือก ค", "ตัวเลือก ง"],
       "correctIndex": 0,
@@ -24,14 +24,50 @@ async function generateQuizWithGemini(apiKey, text, filename) {
 }
 
 เงื่อนไข:
-- 10 ข้อ
+- 10 ข้อเท่านั้น
 - ตัวเลือก 4 ตัวเลือกต่อข้อ
 - correctIndex คือ index ที่ถูกต้อง (0-3)
 - explanation ต้องอ้างอิงจากเนื้อหาจริง
 - ภาษาไทยเท่านั้น
 
-เนื้อหา:
-${text.slice(0, 3000)}`;
+เนื้อหา:`;
+
+function parseAIResponse(rawText, filename) {
+  const jsonStr = rawText
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  const parsed = JSON.parse(jsonStr);
+  return {
+    title: parsed.title || `Quiz: ${filename}`,
+    questions: (parsed.questions || []).map((q, i) => ({
+      ...q,
+      id: `q${i + 1}`,
+    })),
+  };
+}
+
+async function generateQuizWithWorkersAI(env, text, filename) {
+  const ai = env.AI;
+  if (!ai) throw new Error("AI binding not available");
+
+  const response = await ai.run("@cf/meta/llama-3.1-8b-instruct-fp8", {
+    messages: [
+      { role: "system", content: "You are a quiz generator. Always respond with valid JSON only." },
+      { role: "user", content: `${QUIZ_PROMPT}\n\n${text.slice(0, 2000)}` },
+    ],
+    max_tokens: 4096,
+    temperature: 0.7,
+  });
+
+  const rawText = response?.response || response?.data?.response || "";
+  if (!rawText) throw new Error("Empty AI response");
+
+  return parseAIResponse(rawText, filename);
+}
+
+async function generateQuizWithGemini(apiKey, text, filename) {
+  const prompt = `${QUIZ_PROMPT}\n\n${text.slice(0, 3000)}`;
 
   const resp = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -51,22 +87,9 @@ ${text.slice(0, 3000)}`;
 
   const data = await resp.json();
   const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  if (!rawText) throw new Error("Empty Gemini response");
 
-  // Strip markdown fences
-  const jsonStr = rawText
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-
-  const parsed = JSON.parse(jsonStr);
-
-  return {
-    title: parsed.title || `Quiz: ${filename}`,
-    questions: (parsed.questions || []).map((q, i) => ({
-      ...q,
-      id: `q${i + 1}`,
-    })),
-  };
+  return parseAIResponse(rawText, filename);
 }
 
 // ---------------------------------------------------------------------------
@@ -351,19 +374,35 @@ app.post("/api/upload", async (c) => {
       }
     }
 
-    // Generate quiz
-    const apiKey = c.env.GEMINI_API_KEY;
-    let quizData;
+    // Generate quiz — Workers AI (freshest, no quota worries)
+    let quizData = null;
+    let genError = null;
 
-    if (apiKey) {
+    // 1st try: Workers AI (built-in, free 10k req/day)
+    if (c.env.AI) {
       try {
-        quizData = await generateQuizWithGemini(apiKey, text, filename);
+        quizData = await generateQuizWithWorkersAI(c.env, text, filename);
+        console.log("AI source: Workers AI");
       } catch (e) {
-        // Fallback to mock on any Gemini error (quota, invalid key, etc.)
-        console.error("Gemini fallback:", e.message.slice(0, 100));
-        quizData = generateMockQuiz(filename);
+        genError = e;
+        console.error("Workers AI failed:", e.message.slice(0, 80));
       }
-    } else {
+    }
+
+    // 2nd try: Gemini API (if Workers AI failed)
+    if (!quizData && c.env.GEMINI_API_KEY) {
+      try {
+        quizData = await generateQuizWithGemini(c.env.GEMINI_API_KEY, text, filename);
+        console.log("AI source: Gemini");
+      } catch (e) {
+        genError = e;
+        console.error("Gemini failed:", e.message.slice(0, 80));
+      }
+    }
+
+    // 3rd fallback: Mock quiz
+    if (!quizData) {
+      console.error("All AI failed, using mock. Last error:", genError?.message.slice(0, 60));
       quizData = generateMockQuiz(filename);
     }
 
