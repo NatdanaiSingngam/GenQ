@@ -4,10 +4,16 @@ compatibility_date = "2024-09-23"
 
 account_id = "462809e24d9075765b54cd1fd0842591"
 
-# KV Namespace for storing quiz data
+# KV Namespace (fallback)
 [[kv_namespaces]]
   binding = "GENQ_KV"
   id = "b48af9d4f7ff44c09ba106b97709fc73"
+
+# D1 Database (primary storage)
+[[d1_databases]]
+  binding = "GENQ_DB"
+  database_name = "banana-by-monky-db"
+  database_id = "0dfe304b-4541-41b7-b4b6-7f98a567fd1c"
 
 # Environment variables
 [vars]

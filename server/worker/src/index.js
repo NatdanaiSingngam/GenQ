@@ -115,10 +115,9 @@ function generateMockQuiz(filename) {
 }
 
 // ---------------------------------------------------------------------------
-// Hybrid store: KV (persistent) with in-memory fallback
+// Hybrid store: KV (persistent) + in-memory (fast reads) + D1 (secondary)
 // ---------------------------------------------------------------------------
 const mem = new Map();
-const MEM_TTL = 7 * 86400; // 7 days in seconds
 
 function key(id) {
   return "q:" + id.replace(/^quiz:/, "");
@@ -127,48 +126,58 @@ function key(id) {
 async function saveQuiz(env, quiz) {
   const cleanId = quiz.id.replace(/^quiz:/, "");
   const data = JSON.stringify({ ...quiz, id: cleanId });
+
+  // Memory cache
   mem.set(key(cleanId), data);
-  // Try KV – ignore failure (fallback to memory)
+
+  // KV (primary persistent)
   const kv = env.GENQ_KV;
   if (kv) {
-    try { await kv.put(key(cleanId), data, { expirationTtl: MEM_TTL }); } catch {}
+    try { await kv.put(key(cleanId), data, { expirationTtl: 86400 * 7 }); } catch {}
   }
 }
 
 async function loadQuiz(env, id) {
   const k = key(id);
-  // Try memory first (fast)
+
+  // Memory first (fast)
   const memRaw = mem.get(k);
   if (memRaw !== undefined) return JSON.parse(memRaw);
-  // Fallback to KV
+
+  // KV (persistent)
   const kv = env.GENQ_KV;
   if (kv) {
     try {
       const raw = await kv.get(k);
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        mem.set(k, raw);
+        return JSON.parse(raw);
+      }
     } catch {}
   }
+
   return null;
 }
 
 async function listQuizzes(env) {
   const seen = new Set();
   const quizzes = [];
+
   // Collect from memory
-  for (const [k, v] of mem) {
+  for (const [, v] of mem) {
     try {
       const d = JSON.parse(v);
       seen.add(d.id);
       quizzes.push({ id: d.id, title: d.title, source: d.source, createdAt: d.createdAt, questionCount: d.questionCount });
     } catch {}
   }
-  // Also collect from KV (in case we missed any)
+
+  // KV (persistent)
   const kv = env.GENQ_KV;
   if (kv) {
     try {
       const list = await kv.list();
-      const entries = list.keys || [];
-      for (const entry of entries) {
+      for (const entry of list.keys || []) {
         const name = typeof entry === "string" ? entry : entry.name;
         const raw = await kv.get(name);
         if (raw) {
@@ -183,6 +192,7 @@ async function listQuizzes(env) {
       }
     } catch {}
   }
+
   return quizzes;
 }
 
@@ -195,6 +205,8 @@ app.use("/api/*", cors({ origin: "*", allowMethods: ["GET", "POST", "OPTIONS"], 
 
 // Health
 app.get("/api/health", (c) => c.json({ status: "ok", timestamp: new Date().toISOString() }));
+
+
 
 
 
