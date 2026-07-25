@@ -503,11 +503,7 @@ export default function Quiz() {
               <Edit3 className="w-4 h-4" /> เริ่มทำข้อสอบ
             </button>
           ) : (
-            <button onClick={() => { setSearchParams({ mode: "view" }); setAnswers({}); setSubmitted(false); }}
-              className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-200 transition-colors shrink-0"
-            >
-              <Eye className="w-4 h-4" /> ดูเฉลย
-            </button>
+            <span className="text-sm text-gray-400 shrink-0">ทำข้อสอบ</span>
           )}
         </div>
 
