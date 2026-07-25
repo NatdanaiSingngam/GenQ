@@ -164,7 +164,8 @@ export default function Landing() {
       addToSessionHistory({
         id: data.quizId, title: data.title,
         questionCount: data.questionCount,
-        source: configFile.name, createdAt: new Date().toISOString(),
+        source: configFile.name, round,
+        createdAt: new Date().toISOString(),
       });
 
       setTimeout(() => navigate(`/quiz/${data.quizId}`), 500);

@@ -28,9 +28,18 @@ export function addToSessionHistory(quiz) {
       id: quiz.id,
       title: quiz.title,
       source: quiz.source,
+      round: quiz.round || 0,
       createdAt: quiz.createdAt || new Date().toISOString(),
       questionCount: quiz.questionCount,
     });
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+  } catch {}
+}
+
+export function removeFromSessionHistory(id) {
+  try {
+    const history = getSessionHistory();
+    const filtered = history.filter((h) => h.id !== id);
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
   } catch {}
 }
