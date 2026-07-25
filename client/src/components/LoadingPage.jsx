@@ -47,7 +47,7 @@ export default function LoadingPage({ message = "กำลังโหลด..."
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
-          className="text-lg font-medium text-[#F8FAFC] mb-6"
+          className="text-lg font-medium text-heading mb-6"
         >
           {message === "กำลังสร้างข้อสอบ..." ? (
             <span className="flex items-center gap-3">
@@ -63,15 +63,15 @@ export default function LoadingPage({ message = "กำลังโหลด..."
       {/* Skeleton cards */}
       <div className="w-full max-w-md space-y-4">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="bg-[#1E293B] rounded-2xl border border-[#334155]/50 p-5">
+          <div key={i} className="bg-surface rounded-2xl border border-surface/50 p-5">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-[#334155] animate-pulse" />
-              <div className="h-4 bg-[#334155] animate-pulse rounded-lg flex-1" style={{ animationDelay: `${i * 150}ms` }} />
+              <div className="w-8 h-8 rounded-lg bg-hover animate-pulse" />
+              <div className="h-4 bg-hover animate-pulse rounded-lg flex-1" style={{ animationDelay: `${i * 150}ms` }} />
             </div>
             <div className="space-y-2.5">
-              <div className="h-4 bg-[#334155] animate-pulse rounded-lg w-full" style={{ animationDelay: `${i * 150}ms` }} />
-              <div className="h-4 bg-[#334155] animate-pulse rounded-lg w-3/4" style={{ animationDelay: `${i * 150}ms` }} />
-              <div className="h-12 bg-[#334155] animate-pulse rounded-xl w-full" style={{ animationDelay: `${i * 150}ms` }} />
+              <div className="h-4 bg-hover animate-pulse rounded-lg w-full" style={{ animationDelay: `${i * 150}ms` }} />
+              <div className="h-4 bg-hover animate-pulse rounded-lg w-3/4" style={{ animationDelay: `${i * 150}ms` }} />
+              <div className="h-12 bg-hover animate-pulse rounded-xl w-full" style={{ animationDelay: `${i * 150}ms` }} />
             </div>
           </div>
         ))}

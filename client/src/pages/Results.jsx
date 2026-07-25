@@ -90,12 +90,12 @@ export default function Results() {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
         className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate("/")} className="p-2 hover:bg-[#334155]/50 rounded-xl transition-colors">
-          <ChevronLeft className="w-5 h-5 text-[#64748B]" />
+        <button onClick={() => navigate("/")} className="p-2 hover:bg-hover/50 rounded-xl transition-colors">
+          <ChevronLeft className="w-5 h-5 text-muted" />
         </button>
         <div>
-          <h1 className="text-lg font-bold text-[#F8FAFC]">ผลลัพธ์การสอบ</h1>
-          <p className="text-sm text-[#64748B]">{title}</p>
+          <h1 className="text-lg font-bold text-heading">ผลลัพธ์การสอบ</h1>
+          <p className="text-sm text-muted">{title}</p>
         </div>
       </motion.div>
 
@@ -117,8 +117,8 @@ export default function Results() {
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <motion.span initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.5, type: "spring" }}
-              className="text-4xl font-extrabold text-[#F8FAFC]">{score}</motion.span>
-            <span className="text-sm text-[#64748B] font-medium">คะแนน</span>
+              className="text-4xl font-extrabold text-heading">{score}</motion.span>
+            <span className="text-sm text-muted font-medium">คะแนน</span>
           </div>
         </div>
 
@@ -126,15 +126,15 @@ export default function Results() {
           <div className={`inline-flex items-center gap-2 px-6 py-2 rounded-full text-2xl font-black ${gradeInfo.color} mb-3`}>
             <Award className="w-6 h-6" /> เกรด {grade}
           </div>
-          <p className="text-[#94A3B8] font-medium">{gradeInfo.msg}</p>
+          <p className="text-body font-medium">{gradeInfo.msg}</p>
         </motion.div>
 
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
-          className="flex flex-wrap justify-center gap-6 mt-6 pt-6 border-t border-[#334155]/50">
-          <div className="text-center"><p className="text-2xl font-bold text-emerald-400">{correctCount}</p><p className="text-sm text-[#64748B]">ถูก</p></div>
-          <div className="text-center"><p className="text-2xl font-bold text-rose-400">{total - correctCount - (pendingCount || 0)}</p><p className="text-sm text-[#64748B]">ผิด</p></div>
-          {pendingCount > 0 && <div className="text-center"><p className="text-2xl font-bold text-amber-400">{pendingCount}</p><p className="text-sm text-[#64748B]">รอตรวจ</p></div>}
-          <div className="text-center"><p className="text-2xl font-bold text-indigo-400">{total}</p><p className="text-sm text-[#64748B]">ทั้งหมด</p></div>
+          className="flex flex-wrap justify-center gap-6 mt-6 pt-6 border-t border-surface/50">
+          <div className="text-center"><p className="text-2xl font-bold text-emerald-400">{correctCount}</p><p className="text-sm text-muted">ถูก</p></div>
+          <div className="text-center"><p className="text-2xl font-bold text-rose-400">{total - correctCount - (pendingCount || 0)}</p><p className="text-sm text-muted">ผิด</p></div>
+          {pendingCount > 0 && <div className="text-center"><p className="text-2xl font-bold text-amber-400">{pendingCount}</p><p className="text-sm text-muted">รอตรวจ</p></div>}
+          <div className="text-center"><p className="text-2xl font-bold text-indigo-400">{total}</p><p className="text-sm text-muted">ทั้งหมด</p></div>
         </motion.div>
       </motion.div>
 
@@ -147,11 +147,11 @@ export default function Results() {
               <AlertTriangle className="w-5 h-5 text-orange-400" />
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-[#F8FAFC] mb-2">จุดที่ต้องกลับไปทบทวน</h3>
-              <p className="text-sm text-[#64748B] mb-3">คุณตอบผิด {weakAreas.length} ข้อ แนะนำให้กลับไปอ่านเนื้อหาเกี่ยวกับหัวข้อเหล่านี้เพิ่มเติม:</p>
+              <h3 className="font-bold text-heading mb-2">จุดที่ต้องกลับไปทบทวน</h3>
+              <p className="text-sm text-muted mb-3">คุณตอบผิด {weakAreas.length} ข้อ แนะนำให้กลับไปอ่านเนื้อหาเกี่ยวกับหัวข้อเหล่านี้เพิ่มเติม:</p>
               <div className="space-y-2">
                 {weakAreas.map((area, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm text-[#94A3B8] bg-rose-500/10 rounded-lg px-3 py-2">
+                  <div key={i} className="flex items-center gap-2 text-sm text-body bg-rose-500/10 rounded-lg px-3 py-2">
                     <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
                     <span>{area}</span>
                   </div>
@@ -164,7 +164,7 @@ export default function Results() {
 
       {/* Question Review */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-        <h3 className="font-bold text-[#F8FAFC] mb-4 flex items-center gap-2">
+        <h3 className="font-bold text-heading mb-4 flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-indigo-400" /> ตรวจคำตอบแต่ละข้อ
         </h3>
         <div className="space-y-3">
@@ -173,7 +173,7 @@ export default function Results() {
             const isSelected = selectedQuestion === i;
             return (
               <motion.div key={q.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6 + i * 0.05 }}
-                className={`card cursor-pointer transition-all duration-200 ${isSelected ? "ring-2 ring-indigo-500" : ""}`}
+                className={`card cursor-pointer transition-all duration-200 ${isSelected ? "ring-2 ring-[var(--accent)]" : ""}`}
                 onClick={() => setSelectedQuestion(isSelected ? null : i)}>
                 <div className="flex items-start gap-3">
                   {q.autoGrade === false ? (
@@ -185,28 +185,28 @@ export default function Results() {
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium text-sm text-[#F8FAFC] line-clamp-2 flex-1">{q.question}</p>
+                      <p className="font-medium text-sm text-heading line-clamp-2 flex-1">{q.question}</p>
                     </div>
-                    <span className="inline-flex items-center gap-1 text-xs text-[#64748B]"><Ti className="w-3 h-3" /> {TYPE_LABELS[q.type] || q.type}</span>
+                    <span className="inline-flex items-center gap-1 text-xs text-muted"><Ti className="w-3 h-3" /> {TYPE_LABELS[q.type] || q.type}</span>
 
                     {isSelected && (
                       <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
-                        className="mt-3 pt-3 border-t border-[#334155]/50 space-y-2">
+                        className="mt-3 pt-3 border-t border-surface/50 space-y-2">
                         <div className="flex items-center gap-2 text-sm">
-                          <span className="text-[#64748B]">คำตอบของคุณ:</span>
+                          <span className="text-muted">คำตอบของคุณ:</span>
                           <span className={`font-medium ${q.autoGrade === false ? "text-amber-400" : q.isCorrect ? "text-emerald-400" : "text-rose-400"}`}>
                             {formatUserAnswer(q, q.userAnswer)}
                           </span>
                         </div>
                         {q.autoGrade !== false && !q.isCorrect && (
                           <div className="flex items-center gap-2 text-sm">
-                            <span className="text-[#64748B]">เฉลยที่ถูก:</span>
+                            <span className="text-muted">เฉลยที่ถูก:</span>
                             <span className="font-medium text-indigo-400">{formatCorrectAnswer(q)}</span>
                           </div>
                         )}
                         {q.autoGrade === false && (
                           <div className="flex items-center gap-2 text-sm">
-                            <span className="text-[#64748B]">แนวคำตอบ:</span>
+                            <span className="text-muted">แนวคำตอบ:</span>
                             <span className="font-medium text-amber-400">{formatCorrectAnswer(q)}</span>
                           </div>
                         )}
@@ -216,7 +216,7 @@ export default function Results() {
                               <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
                               <path d="M9 18h6" /><path d="M10 22h4" />
                             </svg>
-                            <p className="text-sm text-[#94A3B8]">{q.explanation}</p>
+                            <p className="text-sm text-body">{q.explanation}</p>
                           </div>
                         )}
                       </motion.div>
