@@ -21,7 +21,7 @@ import {
   FileCheck,
 } from "lucide-react";
 import { uploadFile } from "../api/client";
-import { addToSessionHistory } from "../utils/history";
+import { addToSessionHistory, getSessionHistory } from "../utils/history";
 
 const QUESTION_TYPES = [
   { key: "multipleChoice", label: "เลือกตอบ", color: "bg-blue-100 text-blue-700" },
@@ -146,10 +146,9 @@ export default function Landing() {
     }, 800);
 
     try {
-      // Add round counter for question freshness (track per filename)
-      const fileKey = `genq_round_${configFile.name}`;
-      let round = parseInt(localStorage.getItem(fileKey) || "0", 10) + 1;
-      localStorage.setItem(fileKey, String(round));
+      // Calculate round from existing history entries (not localStorage)
+      const existingHistory = getSessionHistory().filter((h) => h.source === configFile.name);
+      const round = existingHistory.length + 1;
       const configWithRound = { ...questionCounts, _r: round };
 
       const data = await uploadFile(configFile, (pct) => {
