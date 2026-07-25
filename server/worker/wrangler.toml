@@ -17,6 +17,8 @@ account_id = "462809e24d9075765b54cd1fd0842591"
 
 # Environment variables (secrets set via wrangler secret put)
 [vars]
+GOOGLE_REDIRECT_URI = "https://genq-api.banana-by-monky.workers.dev/api/auth/google/callback"
+FRONTEND_URL = "https://genq-dlg.pages.dev"
 
 # Workers AI binding
 [ai]

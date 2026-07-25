@@ -8,7 +8,8 @@
     "kv:create": "wrangler kv:namespace create GENQ_KV"
   },
   "dependencies": {
-    "hono": "^4.6.0"
+    "hono": "^4.6.0",
+    "jose": "^6.2.4"
   },
   "devDependencies": {
     "wrangler": "^3.114.17"

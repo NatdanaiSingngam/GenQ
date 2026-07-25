@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { SignJWT, jwtVerify } from "jose";
 import { SEED_DATA } from "./seed.js";
 
 // ---------------------------------------------------------------------------
@@ -217,14 +218,112 @@ async function listQuizzes(env) {
 // ---------------------------------------------------------------------------
 const app = new Hono();
 
-app.use("/api/*", cors({ origin: "*", allowMethods: ["GET", "POST", "OPTIONS"], allowHeaders: ["Content-Type"] }));
+app.use("/api/*", cors({ origin: "*", allowMethods: ["GET", "POST", "OPTIONS"], allowHeaders: ["Content-Type", "Authorization"], exposeHeaders: ["Content-Length"] }));
+
+// ---------------------------------------------------------------------------
+// JWT Helpers
+// ---------------------------------------------------------------------------
+function getJWTSecret(env) {
+  return new TextEncoder().encode(env.JWT_SECRET || "genq-default-secret-pLEASE-CHANGE");
+}
 
 // Health
 app.get("/api/health", (c) => c.json({ status: "ok", timestamp: new Date().toISOString() }));
 
+// ---------------------------------------------------------------------------
+// Google OAuth — Login
+// ---------------------------------------------------------------------------
 
+// GET /api/auth/google — Redirect to Google consent
+app.get("/api/auth/google", (c) => {
+  const redirectUri = c.env.GOOGLE_REDIRECT_URI || "https://genq-api.banana-by-monky.workers.dev/api/auth/google/callback";
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
+    client_id: c.env.GOOGLE_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "openid email profile",
+    access_type: "offline",
+  })}`;
+  return c.redirect(url);
+});
 
+// GET /api/auth/google/callback — Handle Google redirect
+app.get("/api/auth/google/callback", async (c) => {
+  const { code } = c.req.query();
+  if (!code) return c.json({ error: "Missing authorization code" }, 400);
 
+  const redirectUri = c.env.GOOGLE_REDIRECT_URI || "https://genq-api.banana-by-monky.workers.dev/api/auth/google/callback";
+  const frontendUrl = c.env.FRONTEND_URL || "https://genq-dlg.pages.dev";
+
+  // Exchange auth code for tokens
+  const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code,
+      client_id: c.env.GOOGLE_CLIENT_ID,
+      client_secret: c.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: redirectUri,
+      grant_type: "authorization_code",
+    }),
+  });
+
+  if (!tokenResp.ok) {
+    const errText = await tokenResp.text();
+    return c.json({ error: "Token exchange failed: " + errText }, 400);
+  }
+
+  const tokens = await tokenResp.json();
+
+  // Decode ID token to get user info
+  let userInfo;
+  try {
+    const parts = tokens.id_token.split(".");
+    const payload = JSON.parse(atob(parts[1]));
+    userInfo = {
+      sub: payload.sub,
+      email: payload.email,
+      name: payload.name || payload.email?.split("@")[0] || "User",
+      picture: payload.picture || "",
+    };
+  } catch {
+    return c.json({ error: "Failed to decode ID token" }, 400);
+  }
+
+  // Create JWT
+  const jwt = await new SignJWT(userInfo)
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("7d")
+    .setIssuedAt()
+    .sign(getJWTSecret(c.env));
+
+  // Redirect back to frontend with token
+  return c.redirect(`${frontendUrl}?token=${jwt}`);
+});
+
+// GET /api/auth/me — Get current user from JWT (or null)
+app.get("/api/auth/me", async (c) => {
+  const auth = c.req.header("Authorization");
+  if (!auth?.startsWith("Bearer ")) {
+    return c.json({ user: null });
+  }
+  try {
+    const { payload } = await jwtVerify(auth.slice(7), getJWTSecret(c.env));
+    return c.json({
+      user: {
+        sub: payload.sub,
+        email: payload.email,
+        name: payload.name,
+        picture: payload.picture,
+      },
+    });
+  } catch {
+    return c.json({ user: null });
+  }
+});
+
+// POST /api/auth/logout — Logout (frontend handles token removal; just ack)
+app.post("/api/auth/logout", (c) => c.json({ success: true }));
 
 // GET /api/quiz — List all quizzes
 app.get("/api/quiz", async (c) => {
