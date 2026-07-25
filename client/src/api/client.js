@@ -6,7 +6,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 120000, // 2 min for AI processing
+  timeout: 60000, // 60s for AI processing
 });
 
 export async function uploadFile(file, onProgress, config) {
@@ -30,11 +30,6 @@ export async function getQuiz(quizId) {
 
 export async function submitAnswers(quizId, answers) {
   const { data } = await api.post(`/quiz/${quizId}/submit`, { answers });
-  return data;
-}
-
-export async function getSeedQuiz() {
-  const { data } = await api.get("/quiz/seed/data");
   return data;
 }
 

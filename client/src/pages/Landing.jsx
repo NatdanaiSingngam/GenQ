@@ -111,7 +111,7 @@ export default function Landing() {
       "text/plain": [".txt"],
     },
     maxFiles: 1,
-    maxSize: 100 * 1024 * 1024,
+    maxSize: 15 * 1024 * 1024,
     disabled: uploading || !!configFile,
     onDragEnter: () => setDragOver(true),
     onDragLeave: () => setDragOver(false),
@@ -164,7 +164,15 @@ export default function Landing() {
       setTimeout(() => navigate(`/quiz/${data.quizId}`), 500);
     } catch (err) {
       clearInterval(stepTimer);
-      setError(err.response?.data?.error || err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่");
+      // Try to extract a useful error message
+      let msg = err.response?.data?.error || err.response?.data || err.message || "เกิดข้อผิดพลาด กรุณาลองใหม่";
+      // If the response body is plain text (e.g. "error code: 1102"), show user-friendly message
+      if (typeof msg === "string" && msg.includes("1102")) {
+        msg = "ไฟล์มีขนาดใหญ่เกินไป (🤏 จำกัดที่ 15MB สำหรับบริการฟรี) หรือข้อสอบมากเกินไป กรุณาลดขนาดหรือจำนวนข้อสอบแล้วลองใหม่";
+      } else if (typeof msg !== "string") {
+        msg = "เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่";
+      }
+      setError(msg);
       setUploading(false);
     }
   };
@@ -393,7 +401,7 @@ export default function Landing() {
                       <span className="px-3 py-1 bg-gray-100 rounded-full">PPTX</span>
                       <span className="px-3 py-1 bg-gray-100 rounded-full">DOCX</span>
                       <span className="px-3 py-1 bg-gray-100 rounded-full">TXT</span>
-                      <span className="px-3 py-1 bg-gray-100 rounded-full">สูงสุด 100MB</span>
+                      <span className="px-3 py-1 bg-gray-100 rounded-full">สูงสุด 15MB</span>
                     </div>
                   </div>
                 </motion.div>
