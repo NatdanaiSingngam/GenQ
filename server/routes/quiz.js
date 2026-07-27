@@ -36,6 +36,7 @@ router.get("/:id", (req, res) => {
     createdAt: quiz.createdAt,
     questionCount: quiz.questionCount,
     questions: publicQuestions,
+    timeLimit: quiz.timeLimit || 0,
   });
 });
 

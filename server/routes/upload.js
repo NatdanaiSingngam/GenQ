@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import { v4 as uuidv4 } from "uuid";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { readFileSync, writeFileSync, existsSync } from "fs";
 import { generateQuizFromText } from "../services/ai.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -41,6 +41,17 @@ router.post("/", (req, res) => {
     }
 
     try {
+      // Read timeLimit from request body (might be in config or separate field)
+      let timeLimit = 0;
+      if (req.body.timeLimit) {
+        timeLimit = parseInt(req.body.timeLimit) || 0;
+      } else if (req.body.config) {
+        try {
+          const parsed = JSON.parse(req.body.config);
+          if (parsed.timeLimit) timeLimit = parseInt(parsed.timeLimit) || 0;
+        } catch {}
+      }
+
       const file = req.file;
       if (!file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -102,6 +113,7 @@ router.post("/", (req, res) => {
         createdAt: new Date().toISOString(),
         questionCount: quizData.questions.length,
         questions: quizData.questions,
+        timeLimit: timeLimit > 0 ? timeLimit : undefined,
       };
 
       const dataPath = path.join(__dirname, "..", "data", `${quizId}.json`);
@@ -120,37 +132,66 @@ router.post("/", (req, res) => {
 });
 
 function generateMockQuestions(filename) {
-  const subjects = [
-    { name: "Database Systems", questions: [
-      { question: "ข้อใดคือความหมายของ Database?", options: ["ชุดข้อมูลที่จัดเก็บอย่างมีโครงสร้างและสัมพันธ์กัน", "โปรแกรมจัดการเอกสาร", "ระบบปฏิบัติการ", "โปรแกรมคำนวณ"], correctIndex: 0, explanation: "Database คือชุดข้อมูลที่ถูกจัดเก็บอย่างมีระบบ มีความสัมพันธ์กัน สามารถเรียกใช้ได้อย่างมีประสิทธิภาพ" },
-      { question: "ข้อใดคือ DBMS?", options: ["MySQL", "Microsoft Word", "Google Chrome", "Photoshop"], correctIndex: 0, explanation: "MySQL เป็นระบบจัดการฐานข้อมูล (DBMS) ส่วนตัวเลือกอื่นเป็นโปรแกรมประเภทอื่น" },
-      { question: "Primary Key มีคุณสมบัติอะไร?", options: ["ห้ามมีค่า NULL และต้องไม่ซ้ำกัน", "ซ้ำกันได้", "เป็น NULL ได้", "แก้ไขค่าได้ตลอดเวลา"], correctIndex: 0, explanation: "Primary Key ต้องมีค่าไม่ซ้ำ (Unique) และไม่เป็น NULL เพื่อใช้ระบุแต่ละแถวในตาราง" },
-      { question: "SQL ข้อใดใช้ดึงข้อมูลทั้งหมดจากตาราง students?", options: ["SELECT * FROM students;", "GET * FROM students;", "FETCH * FROM students;", "EXTRACT * FROM students;"], correctIndex: 0, explanation: "คำสั่ง SELECT ใน SQL ใช้ดึงข้อมูล และ * หมายถึงทุกคอลัมน์" },
-      { question: "Normalization มีจุดประสงค์อะไร?", options: ["ลดความซ้ำซ้อนของข้อมูล", "เพิ่มความเร็วในการ query", "เข้ารหัสข้อมูล", "บีบอัดขนาดฐานข้อมูล"], correctIndex: 0, explanation: "Normalization ช่วยลด Data Redundancy และลดปัญหาความไม่สอดคล้องของข้อมูล" },
-      { question: "Index ใน Database มีประโยชน์อย่างไร?", options: ["เพิ่มความเร็วในการค้นหาข้อมูล", "ลดพื้นที่จัดเก็บ", "เพิ่มความปลอดภัย", "สำรองข้อมูลอัตโนมัติ"], correctIndex: 0, explanation: "Index ทำหน้าที่เหมือนสารบัญ ช่วยให้การค้นหาข้อมูลทำได้รวดเร็วขึ้น" },
-      { question: "Transaction คืออะไร?", options: ["ชุดของคำสั่งที่ทำงานร่วมกันแบบทั้งหมดหรือไม่ทำเลย", "การทำรายการเงิน", "คำสั่ง SQL เดี่ยวๆ", "การเชื่อมต่อฐานข้อมูล"], correctIndex: 0, explanation: "Transaction มีคุณสมบัติ ACID ทำให้การทำงานเป็น Atomic — ทำสำเร็จทั้งหมดหรือยกเลิกทั้งหมด" },
-      { question: "ข้อใดคือคุณสมบัติของ NoSQL?", options: ["ยืดหยุ่นกับข้อมูลที่ไม่มีโครงสร้างตายตัว", "ใช้ SQL ในการ query", "มี Schema ตายตัว", "รองรับเฉพาะข้อมูลตัวเลข"], correctIndex: 0, explanation: "NoSQL ออกแบบมาสำหรับข้อมูลที่ไม่มี Schema ตายตัว ยืดหยุ่นและ scale แนวราบได้ดี" },
-      { question: "SQL Injection คืออะไร?", options: ["การโจมตีโดยแทรกคำสั่ง SQL ผ่าน input ของผู้ใช้", "การทำให้ Database Crash", "การขโมยข้อมูลทางกายภาพ", "การแฮ็ก WiFi"], correctIndex: 0, explanation: "SQL Injection เป็นช่องโหว่ที่ผู้ไม่ประสงค์ดีแทรกคำสั่ง SQL ผ่านช่อง input เพื่อเข้าถึงข้อมูล" },
-      { question: "ACID ใน Database ย่อมาจากอะไร?", options: ["Atomicity, Consistency, Isolation, Durability", "Access, Control, Input, Data", "All, Core, Index, Database", "Add, Commit, Insert, Delete"], correctIndex: 0, explanation: "ACID คือคุณสมบัติ 4 ประการของ Transaction ได้แก่ Atomicity, Consistency, Isolation, Durability" },
-    ]},
-    { name: "Programming", questions: [
-      { question: "ตัวแปรในภาษาโปรแกรมมิ่งคืออะไร?", options: ["ที่สำหรับเก็บข้อมูลในหน่วยความจำ", "คำสั่งที่ใช้ loop", "ฟังก์ชันทางคณิตศาสตร์", "อุปกรณ์ฮาร์ดแวร์"], correctIndex: 0, explanation: "ตัวแปร (Variable) คือชื่อที่ใช้อ้างอิงถึงตำแหน่งในหน่วยความจำที่ใช้เก็บข้อมูล" },
-      { question: "Array คืออะไร?", options: ["โครงสร้างข้อมูลที่เก็บค่าหลายค่าในตัวแปรเดียว", "ชนิดของ loop", "คำสั่ง condition", "ฟังก์ชัน built-in"], correctIndex: 0, explanation: "Array เป็นโครงสร้างข้อมูลที่เก็บชุดของค่าหลายค่าไว้ในตัวแปรเดียว โดยเข้าถึงผ่าน index" },
-      { question: "Time Complexity ของ Binary Search คือ?", options: ["O(log n)", "O(n)", "O(n²)", "O(1)"], correctIndex: 0, explanation: "Binary Search แบ่งครึ่งข้อมูลในทุก iteration จึงมี Time Complexity เป็น O(log n)" },
-      { question: "OOP ย่อมาจากอะไร?", options: ["Object-Oriented Programming", "Online Operating Protocol", "Order Of Processing", "Output-Oriented Program"], correctIndex: 0, explanation: "OOP หรือการเขียนโปรแกรมเชิงวัตถุ เป็นกระบวนทัศน์ที่ใช้ concept ของ object และ class" },
-      { question: "Polymorphism ใน OOP คืออะไร?", options: ["ความสามารถของ object ในการมีได้หลายรูปแบบ", "การสืบทอด class", "การซ่อนข้อมูล", "การเชื่อมต่อฐานข้อมูล"], correctIndex: 0, explanation: "Polymorphism หมายถึงความสามารถของ method หรือ object ที่สามารถทำงานได้หลายรูปแบบขึ้นอยู่กับบริบท" },
-      { question: "Recursion คืออะไร?", options: ["ฟังก์ชันที่เรียกใช้ตัวเอง", "การวนลูปแบบปกติ", "การแบ่งหน้าจอ", "การจัดเรียงข้อมูล"], correctIndex: 0, explanation: "Recursion คือเทคนิคที่ฟังก์ชันเรียกใช้ตัวเองเพื่อแก้ปัญหาที่ย่อยลงเรื่อยๆ" },
-      { question: "API ย่อมาจากอะไร?", options: ["Application Programming Interface", "Automated Process Integration", "Applied Protocol Interface", "Application Process Integration"], correctIndex: 0, explanation: "API เป็นชุดของฟังก์ชันและโปรโตคอลที่ใช้สร้างซอฟต์แวร์และให้แอปพลิเคชันต่างๆ สื่อสารกัน" },
-      { question: "Git คืออะไร?", options: ["ระบบควบคุมเวอร์ชันแบบ Distributed", "IDE สำหรับเขียนโค้ด", "ฐานข้อมูล", "ภาษาโปรแกรมมิ่ง"], correctIndex: 0, explanation: "Git เป็น Version Control System แบบ Distributed ที่ใช้ติดตามการเปลี่ยนแปลงของซอร์สโค้ด" },
-      { question: "REST API ใช้ HTTP Method ใดในการอัปเดตข้อมูล?", options: ["PUT / PATCH", "GET", "DELETE", "POST"], correctIndex: 0, explanation: "PUT ใช้แทนที่ข้อมูลทั้งหมด ส่วน PATCH ใช้อัปเดตบางส่วนของข้อมูล" },
-      { question: "Deployment คืออะไร?", options: ["กระบวนการนำซอฟต์แวร์ขึ้นสู่ระบบ Production", "การเขียนโค้ด", "การทดสอบบั๊ก", "การออกแบบ UI"], correctIndex: 0, explanation: "Deployment คือขั้นตอนการนำซอฟต์แวร์ที่พัฒนาเสร็จแล้วไปติดตั้งบนเซิร์ฟเวอร์จริงเพื่อให้ผู้ใช้เข้าถึง" },
-    ]},
+  const bank = [
+    { question: "ข้อใดคือความหมายของ Database?", options: ["ชุดข้อมูลที่จัดเก็บอย่างมีโครงสร้างและสัมพันธ์กัน", "โปรแกรมจัดการเอกสาร", "ระบบปฏิบัติการ", "โปรแกรมคำนวณ"], correctIndex: 0, explanation: "Database คือชุดข้อมูลที่ถูกจัดเก็บอย่างมีระบบ มีความสัมพันธ์กัน" },
+    { question: "ข้อใดคือ DBMS?", options: ["MySQL", "Microsoft Word", "Google Chrome", "Photoshop"], correctIndex: 3, explanation: "MySQL เป็นระบบจัดการฐานข้อมูล (DBMS)" },
+    { question: "Primary Key มีคุณสมบัติอะไร?", options: ["ห้ามมีค่า NULL และต้องไม่ซ้ำกัน", "ซ้ำกันได้", "เป็น NULL ได้", "แก้ไขค่าได้ตลอดเวลา"], correctIndex: 3, explanation: "Primary Key ต้องมีค่าไม่ซ้ำและไม่เป็น NULL" },
+    { question: "SQL ข้อใดใช้ดึงข้อมูลทั้งหมด?", options: ["SELECT * FROM students;", "GET * FROM students;", "FETCH", "EXTRACT"], correctIndex: 2, explanation: "SELECT ใช้ดึงข้อมูล, * หมายถึงทุกคอลัมน์" },
+    { question: "Normalization มีจุดประสงค์อะไร?", options: ["ลดความซ้ำซ้อนของข้อมูล", "เพิ่มความเร็ว", "เข้ารหัส", "บีบอัด"], correctIndex: 3, explanation: "Normalization ช่วยลด Data Redundancy" },
+    { question: "Index มีประโยชน์อย่างไร?", options: ["เพิ่มความเร็วในการค้นหา", "ลดพื้นที่", "เพิ่มความปลอดภัย", "สำรองข้อมูล"], correctIndex: 0, explanation: "Index ทำหน้าที่เหมือนสารบัญ" },
+    { question: "Transaction คืออะไร?", options: ["ชุดคำสั่งที่ทำงานร่วมกันแบบทั้งหมดหรือไม่ทำเลย", "การทำรายการเงิน", "คำสั่ง SQL เดี่ยว", "การเชื่อมต่อ"], correctIndex: 3, explanation: "Transaction มีคุณสมบัติ ACID" },
+    { question: "ข้อใดคือ NoSQL?", options: ["MongoDB", "MySQL", "PostgreSQL", "Oracle"], correctIndex: 1, explanation: "MongoDB เป็น NoSQL แบบ Document-oriented" },
+    { question: "SQL Injection คืออะไร?", options: ["การแทรกคำสั่ง SQL ผ่าน input ผู้ใช้", "ทำให้ Database Crash", "ขโมยข้อมูล", "แฮ็ก WiFi"], correctIndex: 0, explanation: "SQL Injection แทรกคำสั่ง SQL ผ่านช่อง input" },
+    { question: "ACID ย่อมาจากอะไร?", options: ["Atomicity, Consistency, Isolation, Durability", "Access, Control, Input, Data", "All, Core, Index, Database", "Add, Commit, Insert, Delete"], correctIndex: 0, explanation: "Atomicity, Consistency, Isolation, Durability" },
+    { question: "Foreign Key คืออะไร?", options: ["คีย์ที่อ้างอิง Primary Key ของอีกตาราง", "คีย์หลัก", "คีย์ที่ NULL ได้", "คีย์จัดเรียง"], correctIndex: 0, explanation: "Foreign Key เชื่อมความสัมพันธ์ระหว่างตาราง" },
+    { question: "ตัวแปรในภาษาโปรแกรมคืออะไร?", options: ["ที่เก็บข้อมูลในหน่วยความจำ", "คำสั่ง loop", "ฟังก์ชัน", "อุปกรณ์"], correctIndex: 3, explanation: "ตัวแปร (Variable) คือชื่ออ้างอิงถึงตำแหน่งในหน่วยความจำ" },
+    { question: "Array คืออะไร?", options: ["โครงสร้างเก็บค่าหลายค่าในตัวแปรเดียว", "ชนิดของ loop", "คำสั่ง condition", "ฟังก์ชัน"], correctIndex: 0, explanation: "Array เก็บชุดค่าหลายค่าในตัวแปรเดียว เข้าถึงผ่าน index" },
+    { question: "Time Complexity ของ Binary Search?", options: ["O(log n)", "O(n)", "O(n²)", "O(1)"], correctIndex: 3, explanation: "Binary Search แบ่งครึ่งข้อมูลในทุก iteration" },
+    { question: "OOP ย่อมาจากอะไร?", options: ["Object-Oriented Programming", "Online Operating Protocol", "Order Of Processing", "Output-Oriented"], correctIndex: 1, explanation: "OOP = Object-Oriented Programming" },
+    { question: "Polymorphism ใน OOP คืออะไร?", options: ["object มีได้หลายรูปแบบ", "การสืบทอด class", "การซ่อนข้อมูล", "การเชื่อมต่อ"], ci: 2, explanation: "Polymorphism หมายถึงความสามารถในการมีได้หลายรูปแบบ" },
+    { question: "Recursion คืออะไร?", options: ["ฟังก์ชันเรียกใช้ตัวเอง", "การวนลูป", "การแบ่งหน้าจอ", "การจัดเรียง"], ci: 2, explanation: "Recursion คือฟังก์ชันที่เรียกใช้ตัวเอง" },
+    { question: "API ย่อมาจากอะไร?", options: ["Application Programming Interface", "Automated Process Integration", "Applied Protocol Interface", "Application Process"], ci: 3, exp: "API = Application Programming Interface" },
+    { question: "Git คืออะไร?", options: ["ระบบควบคุมเวอร์ชันแบบ Distributed", "IDE", "ฐานข้อมูล", "ภาษาโปรแกรม"], ci: 2, exp: "Git เป็น Version Control System" },
+    { question: "HTTP ใช้พอร์ตใด?", options: ["80", "443", "22", "21"], ci: 0, exp: "HTTP ใช้พอร์ต 80" },
+    { question: "HTTPS ใช้พอร์ตใด?", options: ["443", "80", "22", "3306"], ci: 0, exp: "HTTPS ใช้พอร์ต 443" },
+    { question: "DNS ย่อมาจากอะไร?", options: ["Domain Name System", "Digital Network", "Data Node", "Dynamic Name"], ci: 0, exp: "DNS แปลงชื่อโดเมนเป็น IP Address" },
+    { question: "ลบข้อมูลใช้คำสั่ง SQL ใด?", options: ["DELETE", "REMOVE", "DROP", "ERASE"], ci: 2, exp: "DELETE ใช้ลบแถว, DROP ใช้ลบทั้งตาราง" },
+    { question: "JOIN มีกี่ประเภทหลัก?", options: ["4 ประเภท", "2", "6", "1"], ci: 0, exp: "INNER, LEFT, RIGHT, FULL OUTER" },
+    { question: "TCP ต่างจาก UDP อย่างไร?", options: ["TCP เชื่อมต่อก่อนส่ง", "UDP เชื่อถือได้กว่า", "TCP เร็วกว่า", "เหมือนกัน"], ci: 0, exp: "TCP สร้าง connection ก่อนส่ง UDP ส่งเลย" },
+    { question: "Stack เป็นโครงสร้างแบบใด?", options: ["LIFO", "FIFO", "Random", "Heap"], ci: 0, exp: "Stack ทำงานแบบ LIFO" },
+    { question: "Queue เป็นโครงสร้างแบบใด?", options: ["FIFO", "LIFO", "Random", "Stack"], ci: 0, exp: "Queue ทำงานแบบ FIFO" },
+    { question: "REST API ใช้ Method ใดอัปเดตข้อมูล?", options: ["PUT / PATCH", "GET", "DELETE", "POST"], ci: 0, exp: "PUT = แทนที่, PATCH = อัปเดตบางส่วน" },
+    { question: "Deployment คืออะไร?", options: ["นำซอฟต์แวร์ขึ้น Production", "การเขียนโค้ด", "การทดสอบ", "ออกแบบ UI"], ci: 1, exp: "Deployment = นำซอฟต์แวร์ขึ้นเซิร์ฟเวอร์จริง" },
+    { question: "OSI Model มีกี่ Layer?", options: ["7 Layers", "5", "4", "6"], ci: 0, exp: "OSI Model มี 7 Layers" },
   ];
 
-  // Pick a subject based on filename
+  // Normalize: some entries use ci/exp shorthand — convert to correctIndex/explanation
+  const normalized = bank.map((q) => ({
+    ...q,
+    correctIndex: q.correctIndex !== undefined ? q.correctIndex : q.ci,
+    explanation: q.explanation !== undefined ? q.explanation : q.exp,
+  }));
+  delete normalized.correctIndex; delete normalized.ci; delete normalized.exp;
+
+  // Deduplicate
+  const seen = new Set();
+  const unique = [];
+  for (const q of normalized) {
+    const key = q.question?.substring(0, 30);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(q);
+  }
+
   const hash = filename.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  const subject = subjects[hash % subjects.length];
-  return subject.questions.map((q, i) => ({ ...q, id: `q${i + 1}` }));
+  // Shuffle deterministically based on filename
+  const shuffled = unique.sort((a, b) => {
+    const ha = (hash + a.question.length) % 100;
+    const hb = (hash + b.question.length) % 100;
+    return ha - hb;
+  });
+
+  return shuffled.map((q, i) => ({ ...q, id: `q${i + 1}` }));
 }
 
 export default router;

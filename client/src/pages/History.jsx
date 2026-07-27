@@ -252,7 +252,7 @@ export default function History() {
                             className="flex items-center gap-3 px-4 py-3 pl-14 hover:bg-genq-50 transition-colors group border-b border-gray-50 last:border-0"
                           >
                             <div
-                              onClick={() => navigate(`/quiz/${quiz.id}?mode=take`)}
+                              onClick={() => navigate(`/quiz/${quiz.id}?mode=view`)}
                               className="flex-1 flex items-center gap-3 min-w-0 cursor-pointer"
                             >
                               <div className="w-8 h-8 bg-genq-100 rounded-lg flex items-center justify-center shrink-0">
@@ -334,7 +334,7 @@ export default function History() {
                   className="card-hover flex items-center gap-4 cursor-pointer group relative"
                 >
                   <div
-                    onClick={() => navigate(`/quiz/${quiz.id}?mode=take`)}
+                    onClick={() => navigate(`/quiz/${quiz.id}?mode=view`)}
                     className="flex items-center gap-4 flex-1 min-w-0"
                   >
                     <div className="w-12 h-12 bg-genq-100 rounded-xl flex items-center justify-center shrink-0">

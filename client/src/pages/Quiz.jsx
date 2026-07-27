@@ -1,14 +1,15 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft, ChevronRight, CheckCircle2, XCircle, Lightbulb,
   Send, RotateCcw, FileText, HelpCircle, AlignLeft, SplitSquareHorizontal,
-  Type, Eye, Edit3,
+  Type, Eye, Edit3, Clock, Timer as TimerIcon, AlertTriangle,
 } from "lucide-react";
 import { getQuiz, submitAnswers } from "../api/client";
 import LoadingPage from "../components/LoadingPage";
 import { saveAttempt, getAttempts } from "../utils/attempts";
+import { exportQuizWithAnswers } from "../utils/pdfExport";
 
 const TYPE_ICONS = {
   "multiple-choice": HelpCircle,
@@ -389,6 +390,13 @@ export default function Quiz() {
   const [shownAnswers, setShownAnswers] = useState({}); // { questionId: true } for view mode
   const [answersInitialized, setAnswersInitialized] = useState(false);
 
+  // Timer states
+  const [timeLimit, setTimeLimit] = useState(0); // minutes from server
+  const [timeRemaining, setTimeRemaining] = useState(null); // seconds
+  const [timerWarning, setTimerWarning] = useState(""); // "" | "warning" | "danger"
+  const timerRef = useRef(null);
+  const submittedRef = useRef(false);
+
   // Attempt tracking
   const pastAttempts = useMemo(() => getAttempts(id), [id]);
 
@@ -399,6 +407,7 @@ export default function Quiz() {
         setLoading(true);
         const data = await getQuiz(id);
         setQuiz(data);
+        if (data.timeLimit) setTimeLimit(data.timeLimit);
         // Auto-show all answers in view mode
         if (mode === "view" && data?.questions) {
           const all = {};
@@ -421,6 +430,7 @@ export default function Quiz() {
       setAnswers({});
       setSubmitted(false);
       setShownAnswers({});
+      submittedRef.current = false;
     } else if (mode === "view" && quiz?.questions && !answersInitialized) {
       const all = {};
       quiz.questions.forEach((q) => { all[q.id] = true; });
@@ -429,7 +439,57 @@ export default function Quiz() {
     }
   }, [mode, quiz, answersInitialized]);
 
-  // Start taking the quiz
+  // ── Timer Logic ──
+  const startTimer = useCallback(() => {
+    if (!timeLimit || timeLimit <= 0) return;
+    const endTime = Date.now() + timeLimit * 60 * 1000;
+    setTimeRemaining(timeLimit * 60);
+
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    timerRef.current = setInterval(() => {
+      const left = Math.max(0, Math.round((endTime - Date.now()) / 1000));
+      setTimeRemaining(left);
+
+      // Warning levels
+      if (left <= 60) {
+        setTimerWarning("danger");
+      } else if (left <= 300) {
+        setTimerWarning("warning");
+      }
+
+      if (left <= 0) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+        // Auto-submit
+        if (!submittedRef.current) {
+          handleSubmit(true);
+        }
+      }
+    }, 1000);
+  }, [timeLimit]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  // Start timer when entering take mode with a time limit
+  useEffect(() => {
+    if (mode === "take" && timeLimit > 0 && !submitted) {
+      startTimer();
+    }
+  }, [mode, timeLimit, submitted]);
+
+  function formatTime(seconds) {
+    if (seconds == null) return "";
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  // ── Start taking the quiz ──
   const handleStartTake = () => {
     setSearchParams({ mode: "take" });
     setCurrentIndex(0);
@@ -445,10 +505,20 @@ export default function Quiz() {
     setAnswers((prev) => ({ ...prev, [qId]: value }));
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (isAuto = false) => {
+    if (submittedRef.current) return;
+    submittedRef.current = true;
+
     const answered = Object.keys(answers).length;
-    if (answered < total) {
+    if (!isAuto && answered < total) {
+      submittedRef.current = false;
       if (!confirm(`คุณยังไม่ได้ตอบ ${total - answered} ข้อ แน่ใจหรือว่าต้องการส่ง?`)) return;
+    }
+
+    // Stop timer on manual submit
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
 
     try {
@@ -460,6 +530,7 @@ export default function Quiz() {
       setSubmitting(false);
       setTimeout(() => navigate(`/results/${id}`, { state: result }), 800);
     } catch (err) {
+      submittedRef.current = false;
       setError("เกิดข้อผิดพลาดในการส่งคำตอบ");
       setSubmitting(false);
     }
@@ -495,16 +566,26 @@ export default function Quiz() {
             <p className="text-sm text-gray-400 truncate">{quiz?.source || ""}</p>
           </div>
 
-          {/* Mode switch button */}
-          {isViewing ? (
-            <button onClick={handleStartTake}
-              className="flex items-center gap-1.5 px-3 py-2 bg-genq-600 text-white text-sm font-medium rounded-xl hover:bg-genq-700 transition-colors shrink-0"
-            >
-              <Edit3 className="w-4 h-4" /> เริ่มทำข้อสอบ
-            </button>
-          ) : (
-            <span className="text-sm text-gray-400 shrink-0">ทำข้อสอบ</span>
-          )}
+          {/* Mode switch & Export buttons */}
+          <div className="flex items-center gap-2 shrink-0">
+            {isViewing && (
+              <button onClick={() => exportQuizWithAnswers(quiz, quiz.questions)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-white text-genq-700 text-sm font-medium rounded-xl border-2 border-genq-200 hover:bg-genq-50 hover:border-genq-400 transition-all shrink-0"
+                title="ส่งออกเป็น PDF พร้อมเฉลย"
+              >
+                <FileText className="w-4 h-4" /> PDF
+              </button>
+            )}
+            {isViewing ? (
+              <button onClick={handleStartTake}
+                className="flex items-center gap-1.5 px-3 py-2 bg-genq-600 text-white text-sm font-medium rounded-xl hover:bg-genq-700 transition-colors shrink-0"
+              >
+                <Edit3 className="w-4 h-4" /> เริ่มทำข้อสอบ
+              </button>
+            ) : (
+              <span className="text-sm text-gray-400 shrink-0">ทำข้อสอบ</span>
+            )}
+          </div>
         </div>
 
         {/* Progress bar (only in take mode) */}
@@ -521,6 +602,62 @@ export default function Quiz() {
             <span className="text-sm font-medium text-gray-500 shrink-0">
               {currentIndex + 1} / {total}
             </span>
+          </div>
+        )}
+
+        {/* Timer display (only in take mode with time limit) */}
+        {!isViewing && timeLimit > 0 && timeRemaining != null && (
+          <div className="mt-3">
+            <div
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border-2 transition-all ${
+                timerWarning === "danger"
+                  ? "bg-red-50 border-red-300 text-red-700 animate-pulse"
+                  : timerWarning === "warning"
+                  ? "bg-amber-50 border-amber-300 text-amber-700"
+                  : "bg-gray-50 border-gray-200 text-gray-600"
+              }`}
+            >
+              <Clock className={`w-5 h-5 ${
+                timerWarning === "danger" ? "text-red-500"
+                : timerWarning === "warning" ? "text-amber-500"
+                : "text-gray-400"
+              }`} />
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">เวลาที่เหลือ</span>
+                  <span className={`text-lg font-bold font-mono tracking-wider ${
+                    timerWarning === "danger" ? "text-red-600"
+                    : timerWarning === "warning" ? "text-amber-600"
+                    : "text-gray-700"
+                  }`}>
+                    {formatTime(timeRemaining)}
+                  </span>
+                </div>
+                {/* Timer progress bar */}
+                <div className="mt-1.5 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <motion.div
+                    className={`h-full rounded-full ${
+                      timerWarning === "danger" ? "bg-red-500"
+                      : timerWarning === "warning" ? "bg-amber-500"
+                      : "bg-genq-400"
+                    }`}
+                    initial={{ width: "100%" }}
+                    animate={{ width: `${(timeRemaining / (timeLimit * 60)) * 100}%` }}
+                    transition={{ duration: 0.5 }}
+                  />
+                </div>
+              </div>
+              {timerWarning === "danger" && (
+                <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 animate-bounce" />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Time's up banner */}
+        {!isViewing && submitted && timeLimit > 0 && timeRemaining === 0 && (
+          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm text-center font-medium">
+            ⏰ หมดเวลา! ระบบได้ส่งคำตอบของคุณให้อัตโนมัติแล้ว
           </div>
         )}
 
@@ -675,7 +812,7 @@ export default function Quiz() {
             </div>
             <div className="flex gap-3">
               {currentIndex === total - 1 && !submitted && (
-                <button onClick={handleSubmit} className="btn-primary text-sm flex items-center gap-2" disabled={submitting}>
+                <button onClick={() => handleSubmit(false)} className="btn-primary text-sm flex items-center gap-2" disabled={submitting}>
                   {submitting ? <RotateCcw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   ส่งคำตอบ
                 </button>

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import LoadingPage from "../components/LoadingPage";
 import { saveAttempt } from "../utils/attempts";
+import { exportQuizWithAnswers, exportQuizBlank } from "../utils/pdfExport";
 
 function formatUserAnswer(q, userAnswer) {
   if (userAnswer === null || userAnswer === undefined) return "ไม่ได้ตอบ";
@@ -75,6 +76,7 @@ export default function Results() {
 
   const results = location.state;
   const [selectedQuestion, setSelectedQuestion] = useState(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   useEffect(() => {
     if (!results) navigate("/", { replace: true });
@@ -209,6 +211,39 @@ export default function Results() {
         </motion.div>
       )}
 
+      {/* Actions — moved to top */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+        className="flex flex-wrap gap-3 mb-8 justify-center">
+        <button onClick={() => navigate(`/quiz/${id}?mode=view`)} className="btn-secondary text-sm flex items-center gap-2">
+          <Eye className="w-4 h-4" /> ดูข้อสอบพร้อมเฉลย
+        </button>
+        <button onClick={async () => {
+          setExportingPdf(true);
+          try {
+            const quizData = { title: results.title };
+            const qs = results.questions.map((q) => ({
+              ...q, options: q.options, correctIndex: q.correctIndex,
+              answer: q.answer, acceptableAnswers: q.acceptableAnswers,
+              keywords: q.keywords, pairs: q.pairs, guidelines: q.guidelines,
+              explanation: q.explanation,
+            }));
+            await exportQuizWithAnswers(quizData, qs);
+          } finally { setExportingPdf(false); }
+        }} className="btn-secondary text-sm flex items-center gap-2" disabled={exportingPdf}>
+          {exportingPdf ? (
+            <><RotateCcw className="w-4 h-4 animate-spin" /> กำลังสร้าง PDF...</>
+          ) : (
+            <><FileText className="w-4 h-4" /> ส่งออก PDF พร้อมเฉลย</>
+          )}
+        </button>
+        <button onClick={() => navigate(`/quiz/${id}`)} className="btn-primary text-sm flex items-center gap-2">
+          <RotateCcw className="w-4 h-4" /> ทำอีกครั้ง
+        </button>
+        <button onClick={() => navigate("/")} className="btn-secondary text-sm flex items-center gap-2">
+          <Home className="w-4 h-4" /> กลับหน้าแรก
+        </button>
+      </motion.div>
+
       {/* Question Review */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
         <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -283,19 +318,6 @@ export default function Results() {
         </div>
       </motion.div>
 
-      {/* Actions */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
-        className="flex flex-wrap gap-3 mt-8 justify-center">
-        <button onClick={() => navigate(`/quiz/${id}?mode=view`)} className="btn-secondary text-sm flex items-center gap-2">
-          <Eye className="w-4 h-4" /> ดูข้อสอบพร้อมเฉลย
-        </button>
-        <button onClick={() => navigate(`/quiz/${id}`)} className="btn-primary text-sm flex items-center gap-2">
-          <RotateCcw className="w-4 h-4" /> ทำอีกครั้ง
-        </button>
-        <button onClick={() => navigate("/")} className="btn-secondary text-sm flex items-center gap-2">
-          <Home className="w-4 h-4" /> กลับหน้าแรก
-        </button>
-      </motion.div>
     </div>
   );
 }

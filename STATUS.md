@@ -50,6 +50,8 @@ Upload/Load → Memory Cache (fast) → KV (persistent, 7-day TTL)
 - ✅ Clear history button
 - ✅ AI pipeline: Workers AI → Gemini → Mock
 - ✅ File upload: PDF, PPTX, DOCX, TXT with binary detection
+- ✅ **⏱️ Timer System** — set time limit per quiz in QuizConfig, countdown timer during exam, color-coded warnings (yellow < 5 min, red < 1 min), auto-submit on expiry
+- ✅ **📄 PDF Export** — export quiz with answers to professional A4 PDF (jsPDF + html2canvas), accessible from view mode & results page
 
 ## Env Variables
 - `VITE_API_URL` (Pages production) = `https://genq-api.banana-by-monky.workers.dev/api`

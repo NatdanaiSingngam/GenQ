@@ -13,7 +13,13 @@ export async function uploadFile(file, onProgress, config) {
   const formData = new FormData();
   formData.append("file", file);
   if (config) {
-    formData.append("config", JSON.stringify(config));
+    // Strip timeLimit from config sent to AI, pass it separately
+    const aiConfig = { ...config };
+    delete aiConfig.timeLimit;
+    formData.append("config", JSON.stringify(aiConfig));
+    if (config.timeLimit) {
+      formData.append("timeLimit", String(config.timeLimit));
+    }
   }
 
   const { data } = await api.post("/upload", formData, {
